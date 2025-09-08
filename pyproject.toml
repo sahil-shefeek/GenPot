@@ -4,4 +4,7 @@ version = "0.1.0"
 description = "An LLM-Powered Web API Honeypot"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "fastapi>=0.116.1",
+    "uvicorn>=0.35.0",
+]
