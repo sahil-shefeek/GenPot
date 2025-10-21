@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "decoypot-api",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

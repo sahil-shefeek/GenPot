@@ -1,0 +1,27 @@
+meta {
+  name: idk
+  type: http
+  seq: 1
+}
+
+post {
+  url: http://localhost:8000/api/users/rahul/
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "name": "Rahul KJ",
+    "age": "44",
+    "preferences": {
+      "attraction": "men"
+    },
+    "gender": "PREFER_NOT_TO_SAY"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
