@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+import time
 from fastapi.responses import JSONResponse
 
 from .llm_client import generate_response
@@ -23,16 +24,17 @@ async def decoy_api_endpoint(request: Request, full_path: str):
     body_bytes = await request.body()
     body_str = body_bytes.decode("utf-8", errors="ignore")
 
+    start_time = time.time()
     client_ip = request.client.host if request.client else None
     base_event = {
-        "event": "request_received",
+        "event": "interaction",
         "ip": client_ip,
         "method": method,
         "path": path,
         "body": body_str,
         "headers": dict(request.headers),
     }
-    log_interaction(base_event)
+    # Removed early log_interaction call to consolidate logs
 
     rag_query = f"{method} {path}"
     context = rag_system.get_context(rag_query)
@@ -42,26 +44,29 @@ async def decoy_api_endpoint(request: Request, full_path: str):
         raw_response_text = generate_response(prompt)
         response_json = clean_llm_response(raw_response_text)
 
+        response_time_ms = (time.time() - start_time) * 1000
+
         log_interaction(
             {
                 **base_event,
-                "event": "response_generated",
                 "rag_query": rag_query,
                 "context": context,
                 "response": response_json,
                 "status_code": 200,
+                "response_time_ms": response_time_ms,
             }
         )
         return JSONResponse(content=response_json)
     except Exception as e:
+        response_time_ms = (time.time() - start_time) * 1000
         log_interaction(
             {
                 **base_event,
-                "event": "error",
                 "rag_query": rag_query,
                 "context": context,
                 "error": str(e),
                 "status_code": 500,
+                "response_time_ms": response_time_ms,
             }
         )
         return JSONResponse(
