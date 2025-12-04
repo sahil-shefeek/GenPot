@@ -131,7 +131,27 @@ streamlit run dashboard/app.py
 ```
 Your browser will open with the live threat intelligence dashboard, which will auto-refresh as the honeypot receives traffic.
 
+
+## 🐳 Deployment (Docker)
+
+You can run the entire system (Honeypot + Dashboard) using Docker Compose.
+
+1.  **Build and Run:**
+    ```bash
+    docker compose up --build
+    ```
+
+2.  **Access Services:**
+    *   **Honeypot API:** `http://localhost:8000`
+    *   **Dashboard:** `http://localhost:8501`
+
+3.  **Stop Services:**
+    ```bash
+    docker compose down
+    ```
+
 ---
+
 
 ## 📂 Project Structure
 
