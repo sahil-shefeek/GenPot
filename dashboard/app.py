@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import json
 from pathlib import Path
 
 # --- Configuration ---
@@ -13,6 +14,16 @@ st.set_page_config(
 # Robust pathing: Resolve logs relative to this script
 BASE_DIR = Path(__file__).resolve().parent.parent
 LOG_FILE = BASE_DIR / "logs" / "honeypot.jsonl"
+
+SUSPICIOUS_KEYWORDS = [
+    "/etc/passwd",
+    ".env",
+    "union select",
+    "eval(",
+    "git",
+    "config",
+    "admin",
+]
 
 
 def load_data():
@@ -40,6 +51,19 @@ def load_data():
         else:
             df["status_code"] = df["status_code"].fillna(0).astype(int)
 
+        # Threat Tagging Logic
+        def classify_threat(row):
+            # content to check
+            targets = [str(row.get("path", "")), str(row.get("body", ""))]
+            content = " ".join(targets).lower()
+
+            for keyword in SUSPICIOUS_KEYWORDS:
+                if keyword in content:
+                    return "CRITICAL"
+            return "INFO"
+
+        df["threat_level"] = df.apply(classify_threat, axis=1)
+
         return df
     except ValueError:
         # Handle cases where file exists but is empty or invalid JSON
@@ -58,6 +82,14 @@ if st.button("Refresh Data"):
 
 # Load data
 df = load_data()
+
+# Sidebar Filter
+st.sidebar.header("Filters")
+threat_filter = st.sidebar.radio("Filter by Threat Level", ["All", "Critical", "Info"])
+
+# Apply Filter
+if not df.empty and threat_filter != "All":
+    df = df[df["threat_level"] == threat_filter.upper()]
 
 if df.empty:
     st.warning("No data available yet. Waiting for attacks...")
@@ -142,23 +174,76 @@ else:
 
     # --- Bottom Row: Raw Data ---
     st.subheader("Recent Activity")
+    st.caption("Select a row to inspect payload details.")
+
+    # Ensure we are working with the latest data (sorted by timestamp)
+    # Use top 50 rows to allow deeper inspection without overwhelming the generic table
+    display_df = df.head(50)
 
     # Select specific columns to display if they exist
     cols_to_display = [
         "timestamp",
+        "threat_level",
         "method",
         "path",
         "ip",
         "response_time_ms",
         "status_code",
     ]
-    available_cols = [c for c in cols_to_display if c in df.columns]
+    available_cols = [c for c in cols_to_display if c in display_df.columns]
 
-    if available_cols:
-        st.dataframe(
-            df[available_cols].head(10),
-            use_container_width=True,
-            hide_index=True,
-        )
-    else:
-        st.dataframe(df.head(10), use_container_width=True)
+    # Show table with selection enabled
+    event = st.dataframe(
+        display_df[available_cols] if available_cols else display_df,
+        use_container_width=True,
+        hide_index=True,
+        selection_mode="single-row",
+        on_select="rerun",
+        column_config={
+            "threat_level": st.column_config.TextColumn(
+                "Threat Level", help="Based on heuristic keywords"
+            ),
+        },
+    )
+
+    # Payload Inspector
+    if event.selection.rows:
+        selected_index = event.selection.rows[0]
+        selected_row = display_df.iloc[selected_index]
+
+        st.divider()
+        st.subheader("🔍 Interaction Details")
+
+        col_details1, col_details2 = st.columns(2)
+
+        with col_details1:
+            st.markdown("**Request Body**")
+            req_body = selected_row.get("body", None)
+
+            if isinstance(req_body, dict):
+                st.json(req_body)
+            elif isinstance(req_body, str) and req_body.strip():
+                try:
+                    st.json(json.loads(req_body))
+                except json.JSONDecodeError:
+                    st.text(req_body)  # Display as plain text if not valid JSON
+            elif req_body:
+                st.write(req_body)  # Fallback
+            else:
+                st.info("Empty Payload")
+
+        with col_details2:
+            st.markdown("**Response Body**")
+            res_body = selected_row.get("response", None)
+
+            if isinstance(res_body, dict):
+                st.json(res_body)
+            elif isinstance(res_body, str) and res_body.strip():
+                try:
+                    st.json(json.loads(res_body))
+                except json.JSONDecodeError:
+                    st.text(res_body)
+            elif res_body:
+                st.write(res_body)
+            else:
+                st.info("Empty Response")
