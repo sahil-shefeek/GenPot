@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 from pathlib import Path
-import time
 
 # --- Configuration ---
 st.set_page_config(
@@ -33,6 +33,12 @@ def load_data():
             df["timestamp"] = pd.to_datetime(df["timestamp"])
             # Sort by timestamp descending (newest first)
             df = df.sort_values(by="timestamp", ascending=False)
+
+        # Schema Safety: Ensure status_code exists and handle missing values
+        if "status_code" not in df.columns:
+            df["status_code"] = 0
+        else:
+            df["status_code"] = df["status_code"].fillna(0).astype(int)
 
         return df
     except ValueError:
@@ -83,6 +89,54 @@ else:
         st.bar_chart(path_counts, x="Path", y="Count")
     else:
         st.info("No path data available.")
+
+    st.divider()
+
+    # --- Attack Trends ---
+    st.subheader("Attack Trends")
+
+    # 1. Time Series Chart (Attacks per Minute)
+    if "timestamp" in df.columns:
+        # Resample to 1 minute intervals and count attacks
+        # We use a placeholder column 'ip' to count occurrences
+        # fillna(0) ensures gaps in traffic appear as 0 instead of breaks/NaN
+        attacks_per_min = (
+            df.set_index("timestamp")
+            .resample("1Min")["ip"]
+            .count()
+            .fillna(0)
+            .reset_index(name="Count")
+        )
+
+        fig_ts = px.line(
+            attacks_per_min, x="timestamp", y="Count", title="Attacks per Minute"
+        )
+        st.plotly_chart(fig_ts, use_container_width=True)
+
+    col_trend1, col_trend2 = st.columns(2)
+
+    with col_trend1:
+        # 2. Status Code Distribution
+        if "status_code" in df.columns:
+            status_counts = df["status_code"].value_counts().reset_index()
+            status_counts.columns = ["Status Code", "Count"]
+            fig_pie = px.pie(
+                status_counts,
+                names="Status Code",
+                values="Count",
+                title="Status Code Distribution",
+            )
+            st.plotly_chart(fig_pie, use_container_width=True)
+
+    with col_trend2:
+        # 3. HTTP Method Distribution
+        if "method" in df.columns:
+            method_counts = df["method"].value_counts().reset_index()
+            method_counts.columns = ["Method", "Count"]
+            fig_bar = px.bar(
+                method_counts, x="Method", y="Count", title="HTTP Method Distribution"
+            )
+            st.plotly_chart(fig_bar, use_container_width=True)
 
     st.divider()
 
