@@ -23,19 +23,38 @@ class TestGenerator:
             A list of dictionary objects, each representing a test case.
             Returns an empty list on failure.
         """
+        # Explicit list of vectors to ensure coverage
+        vectors = [
+            "SQL Injection (SQLi)",
+            "Cross-Site Scripting (XSS)",
+            "Path Traversal",
+            "Command Injection",
+            "Broken Authentication",
+            "Insecure Direct Object References (IDOR)",
+            "Server-Side Request Forgery (SSRF)",
+            "Mass Assignment",
+        ]
+
         prompt = f"""
 System: You are a Red Team Penetration Tester.
 Objective: Generate {n} diverse synthetic HTTP test cases to test a honeypot's detection capabilities.
+Context: The target is a Python FastAPI application.
+
+Available Attack Vectors:
+{", ".join(vectors)}
+
+Instruction:
+Select {n} DISTINCT vectors from the list above. For each selected vector, generate a unique test case.
+Ensure diversity in HTTP methods (GET, POST, PUT, DELETE, PATCH, OPTIONS) and payload structures.
+
 Output Format: STRICTLY a JSON Array of objects. Do not include markdown formatting or explanations.
 
 Each object MUST have the following keys:
-- "method": HTTP method (GET, POST, PUT, DELETE, PATCH, etc.)
+- "method": HTTP method
 - "path": URL path (e.g., /admin, /api/login, /etc/passwd)
-- "headers": Dictionary of HTTP headers (User-Agent, Content-Type, custom headers)
-- "body": The payload string (or JSON object) representing the request body. Use null if empty.
-- "description": A short sentence explaining the intent of the test (e.g., "SQL Injection attempt", "Normal user login").
-
-Examples of intent: SQL Injection, XSS, Directory Traversal, Command Injection, Credential Stuffing, Reconnaissance.
+- "headers": Dictionary of HTTP headers
+- "body": The payload string (or JSON object). Use null if empty.
+- "description": A short sentence explaining the intent of the test (e.g., "SQL Injection attempt via login field").
 
 Generate exactly {n} cases now.
 """

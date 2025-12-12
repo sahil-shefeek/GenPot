@@ -25,7 +25,11 @@ CACHE_FILE = BASE_DIR / "logs" / "analysis_cache.json"
 sys.path.append(str(BASE_DIR))
 
 try:
-    from server.llm_client import generate_response, list_available_models
+    from server.llm_client import (
+        generate_response,
+        list_available_models,
+        LLMRateLimitError,
+    )
     from server.utils import clean_llm_response
     from server.config_manager import load_config, save_config
 except ImportError:
@@ -609,28 +613,18 @@ def render_live_feed():
                             render_analysis_ui(analysis_result, entry["timestamp"])
                             # Optional: st.rerun() to lock it in, but rendering directly is faster for the user
 
-                        except Exception as e:
-                            error_msg = str(e)
-                            if (
-                                "429" in error_msg
-                                or "RESOURCE_EXHAUSTED" in error_msg
-                                or "Resource exhausted" in error_msg
-                            ):
-                                st.error("⚠️ Gemini API Quota Exceeded!")
-                                st.info(
-                                    "Tip: You can switch to a local model (Ollama) in the 'Model Configuration' sidebar to continue testing without limits."
+                        except LLMRateLimitError as e:
+                            st.error("⚠️ Gemini API Quota Exceeded!")
+                            st.info(
+                                "Tip: You can switch to a local model (Ollama) in the 'Model Configuration' sidebar to continue testing without limits."
+                            )
+                            if e.retry_after:
+                                st.warning(
+                                    f"Google suggests retrying in: {e.retry_after}"
                                 )
 
-                                # Optional: Try to parse retry delay
-                                import re
-
-                                match = re.search(r"retry in (\d+s)", error_msg)
-                                if match:
-                                    st.warning(
-                                        f"Google suggests retrying in: {match.group(1)}"
-                                    )
-                            else:
-                                st.error(f"Analysis failed: {e}")
+                        except Exception as e:
+                            st.error(f"Analysis failed: {e}")
 
 
 def render_attack_simulator():
@@ -674,26 +668,16 @@ def render_attack_simulator():
                 else:
                     st.error("Generation failed. Check logs or provider status.")
 
+            except LLMRateLimitError as e:
+                st.error("⚠️ Gemini API Quota Exceeded!")
+                st.info(
+                    "Tip: You can switch to a local model (Ollama) in the 'Model Configuration' sidebar to continue testing without limits."
+                )
+                if e.retry_after:
+                    st.warning(f"Google suggests retrying in: {e.retry_after}")
+
             except Exception as e:
-                error_msg = str(e)
-                if (
-                    "429" in error_msg
-                    or "RESOURCE_EXHAUSTED" in error_msg
-                    or "Resource exhausted" in error_msg
-                ):
-                    st.error("⚠️ Gemini API Quota Exceeded!")
-                    st.info(
-                        "Tip: You can switch to a local model (Ollama) in the 'Model Configuration' sidebar to continue testing without limits."
-                    )
-
-                    # Optional: Try to parse retry delay
-                    import re
-
-                    match = re.search(r"retry in (\d+s)", error_msg)
-                    if match:
-                        st.warning(f"Google suggests retrying in: {match.group(1)}")
-                else:
-                    st.error(f"Generation failed: {e}")
+                st.error(f"Generation failed: {e}")
 
     # Editor Section
     if "test_cases_df" in st.session_state:

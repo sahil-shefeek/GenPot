@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 import time
 from fastapi.responses import JSONResponse
 
-from .llm_client import generate_response
+from .llm_client import generate_response, LLMRateLimitError
 from .logger import log_interaction
 from .prompt_manager import craft_prompt
 from .rag_system import RAGSystem
@@ -69,6 +69,26 @@ async def decoy_api_endpoint(request: Request, full_path: str):
             }
         )
         return JSONResponse(content=response_json)
+    except LLMRateLimitError as e:
+        response_time_ms = (time.time() - start_time) * 1000
+        log_interaction(
+            {
+                **base_event,
+                "rag_query": rag_query,
+                "context": context,
+                "error": str(e),
+                "event_status": "error_rate_limit",
+                "status_code": 429,
+                "response_time_ms": response_time_ms,
+            }
+        )
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error": "Service Temporarily Unavailable (Rate Limit Exceeded)",
+                "retry_after": e.retry_after,
+            },
+        )
     except Exception as e:
         response_time_ms = (time.time() - start_time) * 1000
         log_interaction(

@@ -22,6 +22,35 @@ class LLMProvider(ABC):
         pass
 
 
+# --- Exceptions ---
+
+
+class LLMError(Exception):
+    """Base exception for all LLM errors."""
+
+    pass
+
+
+class LLMRateLimitError(LLMError):
+    """Raised when the LLM provider's rate limit is exceeded."""
+
+    def __init__(self, message: str, retry_after: Optional[str] = None):
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
+class LLMContextError(LLMError):
+    """Raised when the prompt exceeds the model's context window."""
+
+    pass
+
+
+class LLMProviderError(LLMError):
+    """Raised for generic provider errors."""
+
+    pass
+
+
 # --- Implementations ---
 
 
@@ -58,8 +87,25 @@ class GeminiProvider(LLMProvider):
             text = getattr(resp, "text", None)
             return (text or "").strip()
         except Exception as e:
-            # Propagate the original exception string to allow upstream handling (e.g. 429 detection)
-            raise RuntimeError(f"Gemini generation failed: {e}") from e
+            error_msg = str(e)
+            
+            # Check for Rate Limit / Quota Exhausted
+            if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg or "Resource exhausted" in error_msg:
+                # Try to extract retry delay
+                retry_after = None
+                import re
+                # Pattern for "Please retry in 43s" or similar
+                match = re.search(r"retry in (\d+(\.\d+)?[sm])", error_msg, re.IGNORECASE)
+                if match:
+                    retry_after = match.group(1)
+                
+                raise LLMRateLimitError(
+                    f"Gemini quota exceeded: {error_msg}", 
+                    retry_after=retry_after
+                ) from e
+            
+            # Generic Provider Error
+            raise LLMProviderError(f"Gemini generation failed: {e}") from e
 
     def list_models(self) -> List[str]:
         # Static list as requested for now
