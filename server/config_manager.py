@@ -1,5 +1,5 @@
 import json
-import os
+
 from pathlib import Path
 from typing import Dict, Any
 
@@ -13,6 +13,8 @@ DEFAULT_CONFIG = {
     "honeypot_model": "gemini-1.5-flash",
     "analysis_provider": "gemini",
     "analysis_model": "gemini-1.5-flash",
+    "generator_provider": "gemini",
+    "generator_model": "gemini-2.5-flash",
 }
 
 
@@ -27,7 +29,9 @@ def load_config() -> Dict[str, Any]:
 
     try:
         with open(CONFIG_FILE, "r") as f:
-            return json.load(f)
+            loaded_config = json.load(f)
+            # Merge defaults with loaded config (defaults serve as base, loaded overrides)
+            return {**DEFAULT_CONFIG, **loaded_config}
     except (json.JSONDecodeError, IOError):
         # Fallback to defaults if corrupted
         return DEFAULT_CONFIG
