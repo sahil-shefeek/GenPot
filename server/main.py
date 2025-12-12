@@ -7,6 +7,8 @@ from .logger import log_interaction
 from .prompt_manager import craft_prompt
 from .rag_system import RAGSystem
 from .utils import clean_llm_response
+from .config_manager import load_config
+
 
 # Initialize real RAG (loads FAISS + mapping from knowledge_base/)
 rag_system = RAGSystem()
@@ -41,7 +43,15 @@ async def decoy_api_endpoint(request: Request, full_path: str):
     prompt = craft_prompt(method, path, body_str, context)
 
     try:
-        raw_response_text = generate_response(prompt)
+        config = load_config()
+        provider = config.get("honeypot_provider", "gemini")
+        model = config.get("honeypot_model", "gemini-1.5-flash")
+
+        raw_response_text = generate_response(
+            prompt,
+            provider_type=provider,
+            model_name=model,
+        )
         response_json = clean_llm_response(raw_response_text)
 
         response_time_ms = (time.time() - start_time) * 1000
@@ -54,6 +64,8 @@ async def decoy_api_endpoint(request: Request, full_path: str):
                 "response": response_json,
                 "status_code": 200,
                 "response_time_ms": response_time_ms,
+                "provider": provider,
+                "model": model,
             }
         )
         return JSONResponse(content=response_json)

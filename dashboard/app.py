@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import json
 import sys
+import os
 
 from pathlib import Path
 
@@ -22,8 +23,9 @@ CACHE_FILE = BASE_DIR / "logs" / "analysis_cache.json"
 sys.path.append(str(BASE_DIR))
 
 try:
-    from server.llm_client import generate_response
+    from server.llm_client import generate_response, list_available_models
     from server.utils import clean_llm_response
+    from server.config_manager import load_config, save_config
 except ImportError:
     st.error(
         "Failed to import server modules. Ensure you are running from the project root."
@@ -126,19 +128,155 @@ def load_data():
         return pd.DataFrame()
 
 
+# --- Health Checks ---
+if not os.getenv("GOOGLE_API_KEY"):
+    st.error("⚠️ GOOGLE_API_KEY is missing. Gemini provider will fail.")
+
+# Optional: Check Ollama availability once
+# We can't easily ping without a client, so we rely on list_available_models returning empty
+# or specific error handling in the UI if needed.
+
+
 # --- UI Layout ---
 st.title("🛡️ GenPot Live Threat Intelligence")
-
-# Refresh button
-if st.button("Refresh Data"):
-    st.rerun()
 
 # Load data
 df = load_data()
 
-# Sidebar Filter
-st.sidebar.header("Filters")
-threat_filter = st.sidebar.radio("Filter by Threat Level", ["All", "Critical", "Info"])
+# --- Configuration Sidebar ---
+st.sidebar.header("⚙️ Model Configuration")
+current_config = load_config()
+
+st.sidebar.caption("Active Configuration:")
+st.sidebar.code(json.dumps(current_config, indent=2), language="json")
+st.sidebar.divider()
+
+
+def render_model_selector(
+    label_prefix: str,
+    provider_key: str,
+    model_key: str,
+    config_key_provider: str,
+    config_key_model: str,
+):
+    st.sidebar.subheader(f"{label_prefix} LLM")
+
+    # Provider Selection
+    current_provider = current_config.get(config_key_provider, "gemini")
+    provider = st.sidebar.selectbox(
+        "Provider",
+        ["gemini", "ollama"],
+        index=0 if current_provider == "gemini" else 1,
+        key=provider_key,
+    )
+
+    # Model Selection Logic
+    # 1. Fetch models based on CURRENT selection (provider)
+    available_models = list_available_models(provider)
+
+    # 2. Handle empty lists (e.g. Ollama down)
+    if not available_models:
+        if provider == "ollama":
+            st.sidebar.warning("⚠️ No Ollama models found. Is Ollama running?")
+        else:
+            st.sidebar.warning("⚠️ No models available.")
+        # Fallback options
+        model_options = ["Unavailable"]
+        default_index = 0
+        disabled = True
+    else:
+        model_options = available_models
+        disabled = False
+
+        # 3. Determine default selection
+        # If the saved config model is in the new list, keep it.
+        # Otherwise, default to the first one in the list.
+        saved_model = current_config.get(config_key_model)
+
+        if saved_model in model_options:
+            default_index = model_options.index(saved_model)
+        else:
+            default_index = 0
+
+    model = st.sidebar.selectbox(
+        "Model Name",
+        model_options,
+        index=default_index,
+        disabled=disabled,
+        key=model_key,
+    )
+
+    return provider, model
+
+
+# Render Selectors
+hp_provider, hp_model = render_model_selector(
+    "Honeypot", "hp_provider", "hp_model", "honeypot_provider", "honeypot_model"
+)
+an_provider, an_model = render_model_selector(
+    "Analyst", "an_provider", "an_model", "analysis_provider", "analysis_model"
+)
+
+
+# Determine if settings are dirty (unsaved changes)
+has_changes = False
+
+
+# Helper to safely get session state or default
+def get_state(key, default):
+    return st.session_state.get(key, default)
+
+
+# Check Honeypot changes
+if get_state(
+    "hp_provider", current_config.get("honeypot_provider")
+) != current_config.get("honeypot_provider"):
+    has_changes = True
+if get_state("hp_model", current_config.get("honeypot_model")) != current_config.get(
+    "honeypot_model"
+):
+    has_changes = True
+
+# Check Analyst changes
+if get_state(
+    "an_provider", current_config.get("analysis_provider")
+) != current_config.get("analysis_provider"):
+    has_changes = True
+if get_state("an_model", current_config.get("analysis_model")) != current_config.get(
+    "analysis_model"
+):
+    has_changes = True
+
+# Save Button with Feedback
+if has_changes:
+    st.sidebar.warning("⚠️ You have unsaved changes.")
+    if st.sidebar.button("Save Settings"):
+        new_config = {
+            "honeypot_provider": hp_provider,
+            "honeypot_model": hp_model,
+            "analysis_provider": an_provider,
+            "analysis_model": an_model,
+        }
+        save_config(new_config)
+        st.sidebar.success("Configuration updated!")
+        st.rerun()
+else:
+    st.sidebar.button("Save Settings", disabled=True)
+
+st.sidebar.divider()
+
+# Sidebar: Refresh Button (Moved here)
+if st.sidebar.button("Refresh Data"):
+    st.rerun()
+
+
+# --- Main Area Filters ---
+# Move filters to top of main area
+col_filter1, col_filter2 = st.columns([2, 1])
+with col_filter1:
+    threat_filter = st.radio(
+        "Filter by Threat Level", ["All", "Critical", "Info"], horizontal=True
+    )
 
 # Apply Filter
 if not df.empty and threat_filter != "All":
@@ -196,7 +334,7 @@ else:
         fig_ts = px.line(
             attacks_per_min, x="timestamp", y="Count", title="Attacks per Minute"
         )
-        st.plotly_chart(fig_ts, use_container_width=True)
+        st.plotly_chart(fig_ts)
 
     col_trend1, col_trend2 = st.columns(2)
 
@@ -211,7 +349,7 @@ else:
                 values="Count",
                 title="Status Code Distribution",
             )
-            st.plotly_chart(fig_pie, use_container_width=True)
+            st.plotly_chart(fig_pie)
 
     with col_trend2:
         # 3. HTTP Method Distribution
@@ -221,7 +359,7 @@ else:
             fig_bar = px.bar(
                 method_counts, x="Method", y="Count", title="HTTP Method Distribution"
             )
-            st.plotly_chart(fig_bar, use_container_width=True)
+            st.plotly_chart(fig_bar)
 
     # 4. Top Attack Tools (User-Agents)
     if "tool_signature" in df.columns:
@@ -232,7 +370,7 @@ else:
         )
         # Invert y-axis to show top tools at the top
         fig_tools.update_layout(yaxis=dict(autorange="reversed"))
-        st.plotly_chart(fig_tools, use_container_width=True)
+        st.plotly_chart(fig_tools)
 
     st.divider()
 
@@ -260,7 +398,7 @@ else:
     # Show table with selection enabled
     event = st.dataframe(
         display_df[available_cols] if available_cols else display_df,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         selection_mode="single-row",
         on_select="rerun",
@@ -278,6 +416,11 @@ else:
 
         st.divider()
         st.subheader("🔍 Interaction Details")
+
+        # Display Provider/Model Metadata
+        provider = selected_row.get("provider", "Unknown")
+        model = selected_row.get("model", "Unknown")
+        st.info(f"**Generated by:** {provider} / {model}")
 
         col_details1, col_details2 = st.columns(2)
 
@@ -392,7 +535,15 @@ else:
 
                     try:
                         # Call LLM
-                        raw_response = generate_response(prompt)
+                        raw_response = generate_response(
+                            prompt,
+                            provider_type=current_config.get(
+                                "analysis_provider", "gemini"
+                            ),
+                            model_name=current_config.get(
+                                "analysis_model", "gemini-1.5-flash"
+                            ),
+                        )
                         analysis_result = clean_llm_response(raw_response)
 
                         # Save to cache with timestamp
