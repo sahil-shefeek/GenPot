@@ -58,6 +58,7 @@ class GeminiProvider(LLMProvider):
             text = getattr(resp, "text", None)
             return (text or "").strip()
         except Exception as e:
+            # Propagate the original exception string to allow upstream handling (e.g. 429 detection)
             raise RuntimeError(f"Gemini generation failed: {e}") from e
 
     def list_models(self) -> List[str]:

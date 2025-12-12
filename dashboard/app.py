@@ -610,7 +610,27 @@ def render_live_feed():
                             # Optional: st.rerun() to lock it in, but rendering directly is faster for the user
 
                         except Exception as e:
-                            st.error(f"Analysis failed: {e}")
+                            error_msg = str(e)
+                            if (
+                                "429" in error_msg
+                                or "RESOURCE_EXHAUSTED" in error_msg
+                                or "Resource exhausted" in error_msg
+                            ):
+                                st.error("⚠️ Gemini API Quota Exceeded!")
+                                st.info(
+                                    "Tip: You can switch to a local model (Ollama) in the 'Model Configuration' sidebar to continue testing without limits."
+                                )
+
+                                # Optional: Try to parse retry delay
+                                import re
+
+                                match = re.search(r"retry in (\d+s)", error_msg)
+                                if match:
+                                    st.warning(
+                                        f"Google suggests retrying in: {match.group(1)}"
+                                    )
+                            else:
+                                st.error(f"Analysis failed: {e}")
 
 
 def render_attack_simulator():
@@ -639,19 +659,41 @@ def render_attack_simulator():
         with st.spinner(
             f"Generating {num_cases} scenarios with {current_config.get('generator_provider')}..."
         ):
-            generator = TestGenerator()
-            test_cases = generator.generate_test_cases(
-                n=num_cases,
-                provider=current_config.get("generator_provider", "gemini"),
-                model=current_config.get("generator_model", "gemini-2.5-flash"),
-            )
+            try:
+                generator = TestGenerator()
+                test_cases = generator.generate_test_cases(
+                    n=num_cases,
+                    provider=current_config.get("generator_provider", "gemini"),
+                    model=current_config.get("generator_model", "gemini-2.5-flash"),
+                )
 
-            if test_cases:
-                # Convert to DataFrame for editing
-                st.session_state["test_cases_df"] = pd.DataFrame(test_cases)
-                st.success(f"Generated {len(test_cases)} attacks!")
-            else:
-                st.error("Generation failed. Check logs or provider status.")
+                if test_cases:
+                    # Convert to DataFrame for editing
+                    st.session_state["test_cases_df"] = pd.DataFrame(test_cases)
+                    st.success(f"Generated {len(test_cases)} attacks!")
+                else:
+                    st.error("Generation failed. Check logs or provider status.")
+
+            except Exception as e:
+                error_msg = str(e)
+                if (
+                    "429" in error_msg
+                    or "RESOURCE_EXHAUSTED" in error_msg
+                    or "Resource exhausted" in error_msg
+                ):
+                    st.error("⚠️ Gemini API Quota Exceeded!")
+                    st.info(
+                        "Tip: You can switch to a local model (Ollama) in the 'Model Configuration' sidebar to continue testing without limits."
+                    )
+
+                    # Optional: Try to parse retry delay
+                    import re
+
+                    match = re.search(r"retry in (\d+s)", error_msg)
+                    if match:
+                        st.warning(f"Google suggests retrying in: {match.group(1)}")
+                else:
+                    st.error(f"Generation failed: {e}")
 
     # Editor Section
     if "test_cases_df" in st.session_state:
