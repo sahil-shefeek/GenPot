@@ -1,14 +1,14 @@
-from fastapi import FastAPI, Request
 import time
+
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from .llm_client import generate_response, LLMRateLimitError
+from .config_manager import load_config
+from .llm_client import LLMRateLimitError, generate_response
 from .logger import log_interaction
 from .prompt_manager import craft_prompt
 from .rag_system import RAGSystem
 from .utils import clean_llm_response
-from .config_manager import load_config
-
 
 # Initialize real RAG (loads FAISS + mapping from knowledge_base/)
 rag_system = RAGSystem()
