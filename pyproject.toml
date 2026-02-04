@@ -33,7 +33,7 @@ dependencies = [
     "numpy==2.2.6",
     "ollama>=0.6.1",
     "onnxruntime>=1.23.2",
-    "optimum>=2.1.0",
+    "optimum[onnxruntime]>=2.1.0",
     "pandas>=2.3.3",
     "plotly>=6.5.0",
     "proto-plus==1.26.1",
