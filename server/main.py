@@ -8,10 +8,13 @@ from .llm_client import LLMRateLimitError, generate_response
 from .logger import log_interaction
 from .prompt_manager import craft_prompt
 from .rag_system import RAGSystem
+from .state_manager import StateManager
 from .utils import clean_llm_response
 
 # Initialize real RAG (loads FAISS + mapping from knowledge_base/)
 rag_system = RAGSystem()
+# Initialize State Manager
+state_manager = StateManager()
 
 app = FastAPI()
 
@@ -40,7 +43,15 @@ async def decoy_api_endpoint(request: Request, full_path: str):
 
     rag_query = f"{method} {path}"
     context = rag_system.get_context(rag_query)
-    prompt = craft_prompt(method, path, body_str, context)
+
+    # State Management: Get Context
+    auth_token = request.headers.get("Authorization", "").replace("Bearer ", "").strip()
+    if not auth_token:
+        auth_token = None
+
+    state_context = state_manager.get_context(path, auth_token=auth_token)
+
+    prompt = craft_prompt(method, path, body_str, context, state_context=state_context)
 
     try:
         config = load_config()
@@ -52,7 +63,39 @@ async def decoy_api_endpoint(request: Request, full_path: str):
             provider_type=provider,
             model_name=model,
         )
-        response_json = clean_llm_response(raw_response_text)
+
+        # Robust Parsing & Branching Logic
+        parsed_output = clean_llm_response(raw_response_text)
+        final_response = {}
+        side_effects = []
+        is_fallback = False
+
+        if "response" in parsed_output and "side_effects" in parsed_output:
+            # Case A: Success - Valid Stateful Response
+            final_response = parsed_output["response"]
+            side_effects = parsed_output["side_effects"]
+        else:
+            # Case B: Fallback
+            is_fallback = True
+            # Check if parsing failed (clean_llm_response returns error dict)
+            if (
+                "error" in parsed_output
+                and "raw" in parsed_output
+                and len(parsed_output) == 2
+            ):
+                # JSON parsing failed, treat raw text as response body (wrapped)
+                final_response = {"raw_response": raw_response_text}
+                # Log the raw text for debugging
+                print(
+                    f"WARN: LLM JSON parsing failed. Raw: {raw_response_text[:200]}..."
+                )
+            else:
+                # Valid JSON but missing schema (e.g. just the body)
+                final_response = parsed_output
+
+        # Apply State Updates
+        if side_effects:
+            state_manager.apply_updates(side_effects)
 
         response_time_ms = (time.time() - start_time) * 1000
 
@@ -61,14 +104,16 @@ async def decoy_api_endpoint(request: Request, full_path: str):
                 **base_event,
                 "rag_query": rag_query,
                 "context": context,
-                "response": response_json,
+                "response": final_response,
+                "state_actions": side_effects,
+                "is_fallback": is_fallback,
                 "status_code": 200,
                 "response_time_ms": response_time_ms,
                 "provider": provider,
                 "model": model,
             }
         )
-        return JSONResponse(content=response_json)
+        return JSONResponse(content=final_response)
     except LLMRateLimitError as e:
         response_time_ms = (time.time() - start_time) * 1000
         log_interaction(
