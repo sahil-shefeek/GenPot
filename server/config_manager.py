@@ -15,6 +15,8 @@ DEFAULT_CONFIG = {
     "analysis_model": "gemini-1.5-flash",
     "generator_provider": "gemini",
     "generator_model": "gemini-2.5-flash",
+    "rag_top_k": 3,
+    "rag_similarity_threshold": 0.75,
 }
 
 

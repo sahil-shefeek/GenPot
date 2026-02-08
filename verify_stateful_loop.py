@@ -17,8 +17,10 @@ client = TestClient(app)
 def test_stateful_flow():
     print("--- Starting Verification ---")
 
-    # Mock RAG to return static context
-    with patch("server.main.rag_system.get_context", return_value="Mock RAG Context"):
+    # Mock RAG to return static context + metadata
+    with patch(
+        "server.main.rag_system.get_context", return_value=("Mock RAG Context", {})
+    ):
         # Test 1: Successful Stateful Update
         print("\n[Test 1] Stateful Update (POST /users)")
         stateful_response = {

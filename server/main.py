@@ -2,6 +2,7 @@ import time
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from .config_manager import load_config
 from .llm_client import LLMRateLimitError, generate_response
@@ -17,6 +18,39 @@ rag_system = RAGSystem()
 state_manager = StateManager()
 
 app = FastAPI()
+
+
+class RAGDebugRequest(BaseModel):
+    query: str
+    top_k: int = 3
+    threshold: float = 0.75
+
+
+@app.post("/api/debug/rag")
+async def debug_rag_endpoint(request: RAGDebugRequest):
+    """
+    Debug endpoint to retrieve RAG context without triggering LLM or State Manager.
+    """
+    start_time = time.time()
+
+    # Call RAG System
+    context, metadata = rag_system.get_context(
+        request.query, top_k=request.top_k, threshold=request.threshold
+    )
+
+    response_time_ms = (time.time() - start_time) * 1000
+
+    # Log debug event
+    log_interaction(
+        {
+            "event": "debug_rag",
+            "query": request.query,
+            "rag_metadata": metadata,
+            "response_time_ms": response_time_ms,
+        }
+    )
+
+    return {"context": context, "metadata": metadata}
 
 
 @app.api_route(
@@ -41,8 +75,16 @@ async def decoy_api_endpoint(request: Request, full_path: str):
     }
     # Removed early log_interaction call to consolidate logs
 
+    # Load Config for RAG parameters
+    config = load_config()
+    rag_top_k = config.get("rag_top_k", 3)
+    rag_threshold = config.get("rag_similarity_threshold", 0.75)
+
     rag_query = f"{method} {path}"
-    context = rag_system.get_context(rag_query)
+    # Unpack context and metadata
+    context, rag_metadata = rag_system.get_context(
+        rag_query, top_k=rag_top_k, threshold=rag_threshold
+    )
 
     # State Management: Get Context
     auth_token = request.headers.get("Authorization", "").replace("Bearer ", "").strip()
@@ -54,7 +96,7 @@ async def decoy_api_endpoint(request: Request, full_path: str):
     prompt = craft_prompt(method, path, body_str, context, state_context=state_context)
 
     try:
-        config = load_config()
+        # config is already loaded above
         provider = config.get("honeypot_provider", "gemini")
         model = config.get("honeypot_model", "gemini-1.5-flash")
 
@@ -104,6 +146,7 @@ async def decoy_api_endpoint(request: Request, full_path: str):
                 **base_event,
                 "rag_query": rag_query,
                 "context": context,
+                "rag_metadata": rag_metadata,
                 "response": final_response,
                 "state_actions": side_effects,
                 "is_fallback": is_fallback,

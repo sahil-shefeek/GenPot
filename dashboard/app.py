@@ -10,6 +10,8 @@ import time
 from pathlib import Path
 
 # --- Configuration ---
+import re
+
 st.set_page_config(
     page_title="GenPot Threat Intelligence",
     page_icon="🛡️",
@@ -69,6 +71,73 @@ def save_to_cache(key, data):
             json.dump(cache, f, indent=2)
     except IOError as e:
         st.error(f"Failed to save cache: {e}")
+
+
+# Helper to get API URL
+API_BASE_URL = "http://localhost:8000"
+
+
+# --- Helpers ---
+def parse_chunk_text(text: str):
+    """
+    Parses the raw chunk text into a structured dictionary.
+    Robustly handles missing fields.
+    """
+    parsed = {}
+
+    # Define regex patterns for known keys
+    patterns = {
+        "LOGIC": r"LOGIC:\s*(.*?)(?=\s+(?:TARGET|RISK_VECTORS|PARAMS|CONTEXT)|$)",
+        "TARGET": r"TARGET:\s*(.*?)(?=\s+(?:LOGIC|RISK_VECTORS|PARAMS|CONTEXT)|$)",
+        "RISK_VECTORS": r"RISK_VECTORS:\s*(.*?)(?=\s+(?:LOGIC|TARGET|PARAMS|CONTEXT)|$)",
+        "PARAMS": r"PARAMS:\s*(.*?)(?=\s+(?:LOGIC|TARGET|RISK_VECTORS|CONTEXT)|$)",
+        "CONTEXT": r"CONTEXT:\s*(.*)",
+    }
+
+    for key, pattern in patterns.items():
+        match = re.search(pattern, text, re.DOTALL)
+        if match:
+            parsed[key] = match.group(1).strip()
+
+    # If parsing failed completely (no keys found), treat whole text as context
+    if not parsed:
+        parsed["CONTEXT"] = text.strip()
+
+    return parsed
+
+
+def render_chunk_card(chunk, index):
+    """Renders a single RAG chunk as a beautiful card."""
+    score = chunk.get("score", 0)
+    chunk_id = chunk.get("id", "N/A")
+    raw_text = chunk.get("text", "")
+
+    data = parse_chunk_text(raw_text)
+
+    with st.container(border=True):
+        # Header: ID and Score
+        c1, c2 = st.columns([3, 1])
+        c1.caption(f"**Chunk {index + 1}** (ID: `{chunk_id}`)")
+        c2.markdown(f"**Score:** `{score:.4f}`")
+
+        # Key Metadata Row
+        m1, m2, m3 = st.columns(3)
+        if "LOGIC" in data:
+            m1.markdown(f"**Logic**\n`{data['LOGIC']}`")
+        if "TARGET" in data:
+            m2.markdown(f"**Target**\n`{data['TARGET']}`")
+        if "RISK_VECTORS" in data:
+            m3.markdown(f"**Risks**\n`{data['RISK_VECTORS']}`")
+
+        st.divider()
+
+        # Main Context
+        st.markdown("**Context**")
+        st.info(data.get("CONTEXT", raw_text))
+
+        # Footer Params
+        if "PARAMS" in data:
+            st.caption(f"**Params:** {data['PARAMS']}")
 
 
 def load_data():
@@ -149,7 +218,9 @@ st.title("🛡️ GenPot Threat Intelligence")
 
 # --- Sidebar Navigation ---
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Live Threat Feed", "Attack Simulator"])
+page = st.sidebar.radio(
+    "Go to", ["Live Threat Feed", "RAG Inspector", "RAG Playground", "Attack Simulator"]
+)
 
 st.sidebar.divider()
 
@@ -245,6 +316,23 @@ gen_provider, gen_model = render_model_selector(
     "generator_provider",
     "generator_model",
 )
+st.sidebar.divider()
+st.sidebar.subheader("📚 RAG Settings")
+rag_top_k = st.sidebar.slider(
+    "Top K Chunks",
+    min_value=1,
+    max_value=10,
+    value=current_config.get("rag_top_k", 3),
+    key="rag_top_k",
+)
+rag_threshold = st.sidebar.slider(
+    "Similarity Threshold",
+    min_value=0.0,
+    max_value=2.0,
+    value=float(current_config.get("rag_similarity_threshold", 0.75)),
+    step=0.05,
+    key="rag_threshold",
+)
 
 
 # Determine if settings are dirty (unsaved changes)
@@ -286,6 +374,16 @@ if get_state("gen_model", current_config.get("generator_model")) != current_conf
 ):
     has_changes = True
 
+# Check RAG changes
+if get_state("rag_top_k", current_config.get("rag_top_k")) != current_config.get(
+    "rag_top_k"
+):
+    has_changes = True
+if get_state(
+    "rag_threshold", current_config.get("rag_similarity_threshold")
+) != current_config.get("rag_similarity_threshold"):
+    has_changes = True
+
 # Save Button with Feedback
 if has_changes:
     st.sidebar.warning("⚠️ You have unsaved changes.")
@@ -297,6 +395,8 @@ if has_changes:
             "analysis_model": an_model,
             "generator_provider": gen_provider,
             "generator_model": gen_model,
+            "rag_top_k": rag_top_k,
+            "rag_similarity_threshold": rag_threshold,
         }
         save_config(new_config)
         st.sidebar.success("Configuration updated!")
@@ -775,10 +875,14 @@ def render_attack_simulator():
                     latency_ms = (time.time() - start_time) * 1000
                     status_code = response.status_code
                     response_text = response.text[:500]  # Truncate for display
+                except requests.exceptions.ConnectionError:
+                    latency_ms = 0
+                    status_code = -1
+                    response_text = "Connection Failed: Is the server running?"
                 except requests.exceptions.RequestException as e:
                     latency_ms = 0
                     status_code = -1  # Error code
-                    response_text = str(e)
+                    response_text = f"Error: {e}"
 
                 # 3. Record Result
                 results.append(
@@ -798,6 +902,7 @@ def render_attack_simulator():
             status_text.text("Execution Complete!")
             time.sleep(0.5)
             status_text.empty()
+
             progress_bar.empty()
 
             # --- Results Visualization ---
@@ -815,29 +920,179 @@ def render_attack_simulator():
                 m2.metric("Blocked/Error", f"{failure_count}/{total_cases}")
 
                 # Display DataFrame with Status Badges logic
-                # Streamlit doesn't have native "badges" in dataframe yet, but we can map status to emoji
                 def status_emoji(code):
                     if code == 200:
                         return "✅ 200 OK"
                     if code == -1:
                         return "❌ Error"
                     if 400 <= code < 500:
-                        return f"⚠️ {code} Client Error"
+                        return "⚠️ Client Error"
                     if 500 <= code < 600:
-                        return f"🔥 {code} Server Error"
+                        return "🔥 Server Error"
                     return f"❓ {code}"
 
-                results_df["Status"] = results_df["Status"].apply(status_emoji)
+                results_df["Status_Label"] = results_df["Status"].apply(status_emoji)
 
-                st.dataframe(results_df, use_container_width=True)
+                # Show specific columns
+                st.dataframe(
+                    results_df[["Method", "Path", "Status_Label", "Latency (ms)"]],
+                    use_container_width=True,
+                )
 
                 st.info(
                     "Attacks sent! Go to the **Live Threat Feed** tab to see how the Honeypot logged and analyzed these requests."
                 )
 
 
-# --- Main Routing ---
+# --- RAG Playground ---
+def render_rag_playground():
+    st.header("🧪 RAG Playground")
+    st.markdown(
+        "Test the retrieval system directly without triggering honeypot alerts."
+    )
+
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        query = st.text_area(
+            "Enter Test Query",
+            height=100,
+            placeholder="e.g. How do I reset my password?",
+        )
+
+    with col2:
+        st.subheader("Settings")
+        debug_top_k = st.slider("Top K", 1, 10, 3, key="debug_top_k")
+        debug_threshold = st.slider(
+            "Threshold", 0.0, 2.0, 0.75, step=0.05, key="debug_threshold"
+        )
+        st.caption("Note: Higher score is better (Cosine Similarity).")
+
+    if st.button("Search Knowledge Base", type="primary"):
+        if not query.strip():
+            st.warning("Please enter a query.")
+            return
+
+        with st.spinner("Searching Vector DB..."):
+            try:
+                response = requests.post(
+                    f"{API_BASE_URL}/api/debug/rag",
+                    json={
+                        "query": query,
+                        "top_k": debug_top_k,
+                        "threshold": debug_threshold,
+                    },
+                )
+
+                if response.status_code == 200:
+                    data = response.json()
+                    metadata = data.get("metadata", {})
+                    chunks = metadata.get("retrieved_chunks", [])
+                    latency = metadata.get("latency_ms", 0)
+
+                    st.success(f"Found {len(chunks)} chunks in {latency:.2f}ms")
+
+                    if not chunks:
+                        st.info("No chunks met the similarity threshold.")
+
+                    for i, chunk in enumerate(chunks):
+                        render_chunk_card(chunk, i)
+                else:
+                    st.error(f"Error: {response.status_code} - {response.text}")
+            except requests.exceptions.ConnectionError:
+                st.error("🔌 **Connection Failed**")
+                st.warning(
+                    f"Could not reach the server at `{API_BASE_URL}`.\n\n"
+                    "Please ensure the backend server is running:\n"
+                    "```bash\npython -m uvicorn server.main:app --reload\n```"
+                )
+            except Exception as e:
+                st.error(f"An unexpected error occurred: {e}")
+
+
+def render_rag_inspector():
+    st.header("📚 RAG Inspector")
+    df = load_data()
+
+    if df.empty:
+        st.warning("No interactions found.")
+        return
+
+    # Filter for requests that have RAG metadata
+    # We check if 'rag_metadata' column exists and is not null
+    if "rag_metadata" in df.columns:
+        # Filter valid rows
+        rag_df = df[df["rag_metadata"].notna()].copy()
+    else:
+        st.info("No RAG metadata found in logs yet.")
+        return
+
+    if rag_df.empty:
+        st.info("No interactions with RAG data found.")
+        return
+
+    # Display Master Table
+    st.subheader("RAG Request Log")
+
+    display_cols = ["timestamp", "method", "path", "response_time_ms"]
+
+    event = st.dataframe(
+        rag_df[display_cols],
+        width="stretch",
+        selection_mode="single-row",
+        on_select="rerun",
+        hide_index=True,
+    )
+
+    if event.selection.rows:
+        idx = event.selection.rows[0]
+        row = rag_df.iloc[idx]
+
+        st.divider()
+        st.subheader("🔎 Inspection Details")
+
+        # Top Metrics
+        c1, c2, c3 = st.columns(3)
+        metadata = row["rag_metadata"]
+        if isinstance(metadata, str):
+            try:
+                metadata = json.loads(metadata)
+            except Exception:
+                metadata = {}
+
+        latency = metadata.get("latency_ms", 0)
+        chunks = metadata.get("retrieved_chunks", [])
+
+        c1.metric("RAG Latency", f"{latency:.2f}ms")
+        c2.metric("Chunks Retrieved", len(chunks))
+        c3.metric("LLM Provider", f"{row.get('provider', 'Unknown')}")
+
+        st.markdown(
+            f"**Query:** `{row.get('rag_query', row.get('method', '') + ' ' + row.get('path', ''))}`"
+        )
+
+        col_left, col_right = st.columns([1, 1])
+
+        with col_left:
+            st.subheader("📄 Retrieved Context")
+            if not chunks:
+                st.info("No chunks retrieved.")
+            else:
+                for i, chunk in enumerate(chunks):
+                    render_chunk_card(chunk, i)
+
+        with col_right:
+            st.subheader("🤖 LLM Response")
+            response = row.get("response", {})
+            st.json(response)
+
+
+# --- Page Routing ---
 if page == "Live Threat Feed":
     render_live_feed()
+elif page == "RAG Inspector":
+    render_rag_inspector()
+elif page == "RAG Playground":
+    render_rag_playground()
 elif page == "Attack Simulator":
     render_attack_simulator()
