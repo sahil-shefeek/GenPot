@@ -10,7 +10,6 @@ from .prompt_manager import craft_prompt
 from .rag_system import RAGSystem
 from .utils import clean_llm_response
 
-# Initialize real RAG (loads FAISS + mapping from knowledge_base/)
 rag_system = RAGSystem()
 
 app = FastAPI()
@@ -36,7 +35,6 @@ async def decoy_api_endpoint(request: Request, full_path: str):
         "body": body_str,
         "headers": dict(request.headers),
     }
-    # Removed early log_interaction call to consolidate logs
 
     rag_query = f"{method} {path}"
     context = rag_system.get_context(rag_query)
