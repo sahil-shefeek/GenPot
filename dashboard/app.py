@@ -149,7 +149,9 @@ st.title("🛡️ GenPot Threat Intelligence")
 
 # --- Sidebar Navigation ---
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Live Threat Feed", "Attack Simulator"])
+page = st.sidebar.radio(
+    "Go to", ["Live Threat Feed", "Attack Simulator", "RAG Inspector"]
+)
 
 st.sidebar.divider()
 
@@ -836,8 +838,48 @@ def render_attack_simulator():
                 )
 
 
+def render_rag_inspector():
+    st.header("🔍 RAG Inspector")
+    st.caption(
+        "Test and inspect the Retrieval-Augmented Generation (RAG) system directly."
+    )
+
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        query = st.text_input(
+            "Simulated Request (e.g., POST /api/login)", value="GET /"
+        )
+    with col2:
+        top_k = st.slider("Top K Chunks", min_value=1, max_value=10, value=3)
+
+    if st.button("Run Inspection", type="primary"):
+        with st.spinner("Querying RAG database..."):
+            try:
+                response = requests.post(
+                    "http://localhost:8000/api/rag-inspect",
+                    json={"query": query, "top_k": top_k},
+                    timeout=10,
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                m1, m2 = st.columns(2)
+                m1.metric("Retrieval Latency", f"{data.get('latency_ms', 0)} ms")
+                m2.metric("Chunks Retrieved", len(data.get("chunks", [])))
+
+                for i, chunk in enumerate(data.get("chunks", [])):
+                    with st.expander(
+                        f"Rank {i + 1} - Index: {chunk['chunk_index']} | FAISS Distance: {chunk['faiss_distance']:.4f}"
+                    ):
+                        st.text(chunk["text"])
+            except requests.exceptions.RequestException as e:
+                st.error(f"Error connecting to backend API: {e}")
+
+
 # --- Main Routing ---
 if page == "Live Threat Feed":
     render_live_feed()
 elif page == "Attack Simulator":
     render_attack_simulator()
+elif page == "RAG Inspector":
+    render_rag_inspector()

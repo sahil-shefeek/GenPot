@@ -2,6 +2,7 @@ import time
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from .config_manager import load_config
 from .llm_client import LLMRateLimitError, generate_response
@@ -14,6 +15,17 @@ from .utils import clean_llm_response
 rag_system = RAGSystem()
 
 app = FastAPI()
+
+
+class RAGInspectRequest(BaseModel):
+    query: str
+    top_k: int | None = None
+
+
+@app.post("/api/rag-inspect")
+async def inspect_rag(request: RAGInspectRequest):
+    result = rag_system.inspect_query(request.query, request.top_k)
+    return result
 
 
 @app.api_route(

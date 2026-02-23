@@ -1,4 +1,5 @@
 import pickle
+import time
 from pathlib import Path
 from typing import List
 
@@ -62,3 +63,32 @@ class RAGSystem:
 
         # Join the best chunks as the context block
         return "\n\n".join(chunks) if chunks else ""
+
+    def inspect_query(self, query: str, top_k: int = None) -> dict:
+        start_time = time.perf_counter()
+        k = max(1, top_k) if top_k is not None else self.top_k
+
+        vec = self.encoder.encode([query], normalize_embeddings=True)
+        if not isinstance(vec, np.ndarray):
+            vec = np.array(vec)
+        vec = vec.astype("float32")
+
+        distances, indices = self.index.search(vec, k)
+        
+        chunks = []
+        for idx, dist in zip(indices[0], distances[0]):
+            if 0 <= idx < len(self.index_to_chunk):
+                chunks.append({
+                    "chunk_index": int(idx),
+                    "faiss_distance": float(dist),
+                    "text": str(self.index_to_chunk[idx])
+                })
+
+        end_time = time.perf_counter()
+        latency_ms = (end_time - start_time) * 1000
+
+        return {
+            "provided_query": query,
+            "latency_ms": round(latency_ms, 2),
+            "chunks": chunks
+        }
