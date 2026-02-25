@@ -9,29 +9,20 @@ from sentence_transformers import SentenceTransformer
 
 
 class RAGSystem:
-    """
-    Loads a pre-built FAISS index and corresponding chunk mapping, and retrieves
-    the most relevant documentation context for a given query.
-    """
-
     def __init__(
         self,
         index_path: Path | str | None = None,
         mapping_path: Path | str | None = None,
-        model_name: str = "all-MiniLM-L6-v2",
+        meta_path: Path | str | None = None, # Added meta_path
+        model_name: str = "sentence-transformers/multi-qa-MiniLM-L6-cos-v1", # FIXED model mismatch
         top_k: int = 3,
     ):
-        base_dir = Path(__file__).resolve().parents[1]  # project root
+        base_dir = Path(__file__).resolve().parents[1]
         kb_dir = base_dir / "knowledge_base"
 
-        self.index_path = (
-            Path(index_path) if index_path else (kb_dir / "api_index.faiss")
-        )
-        self.mapping_path = (
-            Path(mapping_path)
-            if mapping_path
-            else (kb_dir / "index_to_chunk.pkl")
-        )
+        self.index_path = Path(index_path) if index_path else (kb_dir / "api_index.faiss")
+        self.mapping_path = Path(mapping_path) if mapping_path else (kb_dir / "index_to_chunk.pkl")
+        self.meta_path = Path(meta_path) if meta_path else (kb_dir / "index_metadata.pkl")
         self.top_k = max(1, top_k)
 
         print(f"[RAG] Loading SentenceTransformer: {model_name}")
@@ -42,28 +33,51 @@ class RAGSystem:
 
         print(f"[RAG] Loading index-to-chunk mapping from: {self.mapping_path}")
         with open(self.mapping_path, "rb") as f:
-            self.index_to_chunk: List[str] = pickle.load(f)
+            self.index_to_chunk: dict = pickle.load(f)
+
+        # NEW: Load the metadata mapping
+        print(f"[RAG] Loading metadata from: {self.meta_path}")
+        with open(self.meta_path, "rb") as f:
+            self.index_metadata: dict = pickle.load(f)
 
         print("[RAG] System ready")
 
-    def get_context(self, query: str) -> str:
-        # Encode and ensure float32 for FAISS
+    def get_context(self, query: str, similarity_threshold: float = 0.45) -> str:
         vec = self.encoder.encode([query], normalize_embeddings=True)
         if not isinstance(vec, np.ndarray):
             vec = np.array(vec)
         vec = vec.astype("float32")
 
         distances, indices = self.index.search(vec, self.top_k)
-        top_indices = indices[0]
-
+        
         chunks: List[str] = []
-        for idx in top_indices:
-            if 0 <= idx < len(self.index_to_chunk):
-                chunks.append(self.index_to_chunk[idx])
+        # Zip distances and indices together so we can check the score
+        for dist, idx in zip(distances[0], indices[0]):
+            idx = int(idx)
+            
+            # ONLY include the chunk if the cosine similarity is above our threshold
+            if dist >= similarity_threshold:
+                if idx in self.index_to_chunk and idx in self.index_metadata:
+                    chunk_text = self.index_to_chunk[idx]
+                    chunk_meta = self.index_metadata[idx]
+                    
+                    api_path = chunk_meta.get("path", "Unknown Path")
+                    api_method = chunk_meta.get("method", "Unknown Method")
+                    
+                    formatted_chunk = (
+                        f"--- ENDPOINT ---\n"
+                        f"Path: {api_path}\n"
+                        f"Method: {api_method}\n"
+                        f"Similarity Score: {dist:.4f}\n" # Helpful for debugging
+                        f"Details:\n{chunk_text}"
+                    )
+                    chunks.append(formatted_chunk)
 
-        # Join the best chunks as the context block
-        return "\n\n".join(chunks) if chunks else ""
+        # If no chunks met the threshold, return a specific flag or empty string
+        if not chunks:
+            return "NO_RELEVANT_CONTEXT_FOUND"
 
+        return "\n\n".join(chunks)
     def inspect_query(self, query: str, top_k: int = None) -> dict:
         start_time = time.perf_counter()
         k = max(1, top_k) if top_k is not None else self.top_k
