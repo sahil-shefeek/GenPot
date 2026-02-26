@@ -9,10 +9,12 @@ from .llm_client import LLMRateLimitError, generate_response
 from .logger import log_interaction
 from .prompt_manager import craft_prompt
 from .rag_system import RAGSystem
+from .state_manager import StateManager
 from .utils import clean_llm_response
 
 # Initialize real RAG (loads FAISS + mapping from knowledge_base/)
 rag_system = RAGSystem()
+state_manager = StateManager()
 
 app = FastAPI()
 
@@ -52,7 +54,8 @@ async def decoy_api_endpoint(request: Request, full_path: str):
 
     rag_query = f"{method} {path}"
     context = rag_system.get_context(rag_query)
-    prompt = craft_prompt(method, path, body_str, context)
+    state_context = state_manager.get_context(path, dict(request.headers))
+    prompt = craft_prompt(method, path, body_str, context, state_context=state_context)
 
     try:
         config = load_config()
@@ -64,7 +67,26 @@ async def decoy_api_endpoint(request: Request, full_path: str):
             provider_type=provider,
             model_name=model,
         )
-        response_json = clean_llm_response(raw_response_text)
+        parsed_llm_output = clean_llm_response(raw_response_text)
+
+        api_response = {}
+        side_effects = []
+
+        if (
+            isinstance(parsed_llm_output, dict)
+            and "response" in parsed_llm_output
+            and "side_effects" in parsed_llm_output
+        ):
+            api_response = parsed_llm_output.get("response", {})
+            side_effects_raw = parsed_llm_output.get("side_effects", [])
+
+            if isinstance(side_effects_raw, list):
+                side_effects = side_effects_raw
+        else:
+            api_response = parsed_llm_output
+
+        if side_effects:
+            state_manager.apply_updates(side_effects)
 
         response_time_ms = (time.time() - start_time) * 1000
 
@@ -73,14 +95,15 @@ async def decoy_api_endpoint(request: Request, full_path: str):
                 **base_event,
                 "rag_query": rag_query,
                 "context": context,
-                "response": response_json,
+                "response": api_response,
+                "state_actions": side_effects,
                 "status_code": 200,
                 "response_time_ms": response_time_ms,
                 "provider": provider,
                 "model": model,
             }
         )
-        return JSONResponse(content=response_json)
+        return JSONResponse(content=api_response)
     except LLMRateLimitError as e:
         response_time_ms = (time.time() - start_time) * 1000
         log_interaction(
