@@ -85,6 +85,14 @@ async def decoy_api_endpoint(request: Request, full_path: str):
         else:
             api_response = parsed_llm_output
 
+        SIMILARITY_THRESHOLD = 0.5
+        similarity_score = rag_system.compute_similarity(context, api_response)
+
+        if similarity_score < SIMILARITY_THRESHOLD:
+            print(
+                f"[WARN] Response rejected due to low similarity (score: {similarity_score:.4f})"
+            )
+
         if side_effects:
             state_manager.apply_updates(side_effects)
 
@@ -101,6 +109,7 @@ async def decoy_api_endpoint(request: Request, full_path: str):
                 "response_time_ms": response_time_ms,
                 "provider": provider,
                 "model": model,
+                "similarity_score": round(similarity_score, 4),
             }
         )
         return JSONResponse(content=api_response)

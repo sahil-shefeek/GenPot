@@ -1,3 +1,4 @@
+import json
 import pickle
 import time
 from pathlib import Path
@@ -106,3 +107,47 @@ class RAGSystem:
             "latency_ms": round(latency_ms, 2),
             "chunks": chunks
         }
+
+    def _extract_schema(self, data) -> str:
+        """
+        Recursively extracts the schema from a JSON-like dictionary or list,
+        replacing concrete values with their type representations (e.g., 'str', 'int').
+        """
+        def extract(obj):
+            if isinstance(obj, dict):
+                return {k: extract(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                if len(obj) > 0:
+                    return [extract(obj[0])]  # Capture the schema of the first item
+                return []
+            else:
+                return type(obj).__name__
+                
+        schema_dict = extract(data)
+        return json.dumps(schema_dict, indent=2)
+
+    def compute_similarity(self, doc_text: str, response_json: dict) -> float:
+        """
+        Computes the cosine similarity between the retrieved documentation context
+        and the structural schema of the generated JSON response.
+        """
+        if not doc_text or doc_text == "NO_RELEVANT_CONTEXT_FOUND":
+            return 0.0
+
+        schema_str = self._extract_schema(response_json)
+        
+        doc_vec = self.encoder.encode([doc_text], normalize_embeddings=True)
+        resp_vec = self.encoder.encode([schema_str], normalize_embeddings=True)
+        
+        if not isinstance(doc_vec, np.ndarray):
+            doc_vec = np.array(doc_vec)
+        if not isinstance(resp_vec, np.ndarray):
+            resp_vec = np.array(resp_vec)
+            
+        doc_vec = doc_vec.astype("float32")
+        resp_vec = resp_vec.astype("float32")
+        
+        # Compute cosine similarity (dot product of normalized vectors)
+        similarity = float(np.dot(doc_vec[0], resp_vec[0]))
+        
+        return max(0.0, min(1.0, similarity))
