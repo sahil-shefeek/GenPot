@@ -29,7 +29,11 @@ Body: {body}
 2. The "response" key MUST contain the raw JSON body to return to the client. The generated data should be plausible but completely fictional (e.g., use placeholder names, generic data).
 3. The "side_effects" key MUST be a list of actions to update the state based on the request.
    - Each side-effect MUST follow this exact schema: {{"action": "SET"|"DELETE", "scope": "global"|"tokens", "key": "...", "value": ...}}
-   - When generating side_effects, ensure the data structure matches the field names and types found in the API DOCUMENTATION.
+   - **SCOPE DEFINITION:** The 'tokens' scope is ONLY for Bearer tokens, API Keys, or Session IDs. Everything else (e.g., Repos, Gists, Comments, Users) MUST go to the 'global' scope.
+   - **FULL PERSISTENCE:** When a resource is created (POST) or updated (PUT/PATCH), the 'value' in the side_effect MUST be the **COMPLETE JSON OBJECT** of that resource as defined in the documentation. Do not store flags, timestamps, or IDs alone. The 'value' stored should often be identical to the complete resource object returned in your client "response".
+   - **KEY NAMING STRATEGY:** Use intuitive, hierarchical keys for 'global' resources to ensure they can be explicitly targeted or fuzzily matched later. Do not use vague, single-word keys.
+     * Bad Key: "comment" (Too vague, might be overwritten).
+     * Good Key: "/gists/123/comments" or "user_repos".
 4. If you need to generate a timestamp or date, it MUST be current and close to the 'Current UTC Timestamp' provided in the metadata.
 5. Do NOT include any explanatory text, apologies, conversational filler, or markdown formatting like ```json. Your entire output should be only the raw JSON.
 6. The "response" structure MUST strictly follow the schema and examples provided in the documentation context.
