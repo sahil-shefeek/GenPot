@@ -42,20 +42,30 @@ async def decoy_api_endpoint(request: Request, full_path: str):
 
     start_time = time.time()
     client_ip = request.client.host if request.client else None
+
+    headers_dict = dict(request.headers)
+
     base_event = {
         "event": "interaction",
         "ip": client_ip,
         "method": method,
         "path": path,
         "body": body_str,
-        "headers": dict(request.headers),
+        "headers": headers_dict,
     }
     # Removed early log_interaction call to consolidate logs
 
     rag_query = f"{method} {path}"
     context = rag_system.get_context(rag_query)
-    state_context = state_manager.get_context(path, dict(request.headers))
-    prompt = craft_prompt(method, path, body_str, context, state_context=state_context)
+    state_context = state_manager.get_context(path, headers_dict)
+    prompt = craft_prompt(
+        method=method,
+        path=path,
+        body=body_str,
+        headers=headers_dict,
+        context=context,
+        state_context=state_context,
+    )
 
     try:
         config = load_config()
