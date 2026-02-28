@@ -1,17 +1,17 @@
-# 🛡️ DecoyPot: An LLM-Powered Web API Honeypot
+# 🛡️ GenPot: An LLM-Powered Web API Honeypot
 
 ![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Status](https://img.shields.io/badge/status-MVP%20Development-orange.svg)
 
-A modern, high-interaction, AI-driven Web API honeypot designed to realistically engage and analyze sophisticated attackers. This project is the implementation of the research paper: *"DecoyPot: A large language model-driven web API honeypot for realistic attacker engagement"* \cite{sezgin2025decoypot}.
+A modern, high-interaction, AI-driven Web API honeypot designed to realistically engage and analyze sophisticated attackers. This project is the implementation of the research paper: *"GenPot: A large language model-driven web API honeypot for realistic attacker engagement"* \cite{sezgin2025genpot}.
 
 ---
 
 ## 📖 Table of Contents
 
 - [The Problem](#-the-problem)
-- [Our Solution: DecoyPot](#-our-solution-decoypot)
+- [Our Solution: GenPot](#-our-solution-genpot)
 - [Core Features](#-core-features)
 - [System Architecture](#-system-architecture)
 - [Technology Stack](#-technology-stack)
@@ -33,9 +33,9 @@ A modern, high-interaction, AI-driven Web API honeypot designed to realistically
 
 Traditional honeypots are static and predictable. They use pre-scripted, canned responses that are easily identified by sophisticated adversaries (like APT groups). As a result, they fail to engage the very attackers we want to study, limiting the quality of the threat intelligence we can gather. There is a need for a dynamic decoy that can generate believable, context-aware responses on the fly.
 
-## 💡 Our Solution: DecoyPot
+## 💡 Our Solution: GenPot
 
-DecoyPot is a next-generation honeypot that uses a **Large Language Model (LLM)** as its "brain" to create a dynamic and believable decoy. To solve the problem of LLM "hallucinations," DecoyPot is built on a **Retrieval-Augmented Generation (RAG)** framework. This grounds the LLM in the real documentation of the API it's mimicking, ensuring all responses are not only plausible but also structurally and semantically correct.
+GenPot is a next-generation honeypot that uses a **Large Language Model (LLM)** as its "brain" to create a dynamic and believable decoy. To solve the problem of LLM "hallucinations," GenPot is built on a **Retrieval-Augmented Generation (RAG)** framework. This grounds the LLM in the real documentation of the API it's mimicking, ensuring all responses are not only plausible but also structurally and semantically correct.
 
 The goal is to create a decoy so realistic that it can:
 1.  **Engage** sophisticated attackers for prolonged periods.
@@ -51,9 +51,9 @@ The goal is to create a decoy so realistic that it can:
 
 ## 🏗️ System Architecture
 
-The DecoyPot system follows a RAG pipeline to process incoming requests and generate high-fidelity responses.
+The GenPot system follows a RAG pipeline to process incoming requests and generate high-fidelity responses.
 
-![DecoyPot Architecture Diagram](.github/decoypot_architecture.png)
+![GenPot Architecture Diagram](.github/genpot_architecture.png)
 
 ## 🛠️ Technology Stack
 
@@ -67,7 +67,7 @@ The DecoyPot system follows a RAG pipeline to process incoming requests and gene
 
 ## 🚀 Getting Started
 
-Follow these steps to get a working MVP of the DecoyPot system running locally.
+Follow these steps to get a working MVP of the GenPot system running locally.
 
 ### Prerequisites
 
@@ -81,7 +81,7 @@ Follow these steps to get a working MVP of the DecoyPot system running locally.
 1.  **Clone the repository:**
     ```bash
     git clone [Your-Repository-URL]
-    cd decoypot_project
+    cd genpot_project
     ```
 
 2.  **Create and sync the virtual environment:**
@@ -156,7 +156,7 @@ You can run the entire system (Honeypot + Dashboard) using Docker Compose.
 ## 📂 Project Structure
 
 ```
-decoypot_project/
+genpot_project/
 ├── data/              # Raw OpenAPI/Swagger specification files
 ├── knowledge_base/    # Stores the generated FAISS index
 ├── logs/              # Contains the structured JSONL logs
@@ -184,7 +184,7 @@ decoypot_project/
 ## 📜 Citation
 
 This project is an implementation based on the following research paper:
-> Sezgin, A., & Boyacı, A. (2025). DecoyPot: A large language model-driven web API honeypot for realistic attacker engagement. *Computers & Security*, *154*, 104458.
+> Sezgin, A., & Boyacı, A. (2025). GenPot: A large language model-driven web API honeypot for realistic attacker engagement. *Computers & Security*, *154*, 104458.
 
 ---
 

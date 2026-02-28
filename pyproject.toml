@@ -1,5 +1,5 @@
 [project]
-name = "DecoyPot"
+name = "GenPot"
 version = "0.1.0"
 description = "An LLM-Powered Web API Honeypot"
 readme = "README.md"
