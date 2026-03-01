@@ -1,46 +1,56 @@
-import json
+import yaml
 
 from pathlib import Path
 from typing import Dict, Any
 
 # Define paths relative to this file
 BASE_DIR = Path(__file__).resolve().parent.parent
-LOG_DIR = BASE_DIR / "logs"
-CONFIG_FILE = LOG_DIR / "app_config.json"
-
-DEFAULT_CONFIG = {
-    "honeypot_provider": "gemini",
-    "honeypot_model": "gemini-1.5-flash",
-    "analysis_provider": "gemini",
-    "analysis_model": "gemini-1.5-flash",
-    "generator_provider": "gemini",
-    "generator_model": "gemini-2.5-flash",
-}
+CONFIG_PATH = BASE_DIR / "config" / "genpot.yaml"
 
 
 def load_config() -> Dict[str, Any]:
     """
-    Load configuration from disk.
-    If file doesn't exist, create it with defaults.
+    Load configuration from the YAML config file.
+    Raises FileNotFoundError if genpot.yaml is missing.
     """
-    if not CONFIG_FILE.exists():
-        save_config(DEFAULT_CONFIG)
-        return DEFAULT_CONFIG
+    if not CONFIG_PATH.exists():
+        raise FileNotFoundError(
+            f"Configuration file not found: {CONFIG_PATH}. "
+            "Please create config/genpot.yaml before starting the server."
+        )
 
-    try:
-        with open(CONFIG_FILE, "r") as f:
-            loaded_config = json.load(f)
-            # Merge defaults with loaded config (defaults serve as base, loaded overrides)
-            return {**DEFAULT_CONFIG, **loaded_config}
-    except (json.JSONDecodeError, IOError):
-        # Fallback to defaults if corrupted
-        return DEFAULT_CONFIG
+    with open(CONFIG_PATH, "r") as f:
+        config = yaml.safe_load(f)
+
+    return config
 
 
-def save_config(new_config: Dict[str, Any]) -> None:
-    """Save configuration to disk."""
-    # Ensure logs directory exists
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
+def get_emulator_config(protocol: str) -> Dict[str, Any]:
+    """
+    Return the configuration for a specific emulator protocol.
 
-    with open(CONFIG_FILE, "w") as f:
-        json.dump(new_config, f, indent=4)
+    If the emulator block does not specify 'provider' or 'model',
+    the values are injected from 'llm_defaults'.
+
+    Raises:
+        KeyError: If the requested protocol is not defined under 'emulators'.
+    """
+    config = load_config()
+    emulators = config.get("emulators", {})
+
+    if protocol not in emulators:
+        raise KeyError(
+            f"Emulator '{protocol}' is not defined in the configuration. "
+            f"Available emulators: {list(emulators.keys())}"
+        )
+
+    emulator = dict(emulators[protocol])  # shallow copy
+    defaults = config.get("llm_defaults", {})
+
+    # Inject fallback values from llm_defaults
+    if "provider" not in emulator:
+        emulator["provider"] = defaults.get("provider")
+    if "model" not in emulator:
+        emulator["model"] = defaults.get("model")
+
+    return emulator
