@@ -1,15 +1,20 @@
-"""Tests for server.core.prompting — HttpPromptStrategy."""
+"""Tests for server.core.prompting — HttpPromptStrategy & SmtpPromptStrategy."""
 
 import json
 
 import pytest
 
-from server.core.prompting import HttpPromptStrategy
+from server.core.prompting import HttpPromptStrategy, SmtpPromptStrategy
 
 
 @pytest.fixture
 def strategy():
     return HttpPromptStrategy()
+
+
+@pytest.fixture
+def smtp_strategy():
+    return SmtpPromptStrategy()
 
 
 # ---------------------------------------------------------------------------
@@ -159,3 +164,98 @@ def test_parse_response_invalid_json(strategy):
     assert result["side_effects"] == []
     # The inner response should contain the error from clean_llm_response
     assert "error" in result["response"]
+
+
+# ===========================================================================
+# SmtpPromptStrategy tests
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# SMTP build_prompt — Sandwich layout
+# ---------------------------------------------------------------------------
+
+
+def test_smtp_build_prompt_sandwich_layout(smtp_strategy):
+    """Context and state must appear BEFORE the command, and the output
+    schema must appear at the very end."""
+    request = {"command": "EHLO attacker.com"}
+    context = "SMTP_DOCUMENTATION_BLOCK"
+    state = "SESSION_STATE_BLOCK"
+
+    prompt = smtp_strategy.build_prompt(request, context, state)
+
+    ctx_pos = prompt.index("SMTP_DOCUMENTATION_BLOCK")
+    state_pos = prompt.index("SESSION_STATE_BLOCK")
+    cmd_pos = prompt.index("EHLO attacker.com")
+    schema_pos = prompt.index("OUTPUT SCHEMA")
+    generate_pos = prompt.index("GENERATE YOUR SMTP RESPONSE NOW")
+
+    # TOP: System role & rules come before context
+    assert ctx_pos > 0
+    # MIDDLE: Context and state come before the command
+    assert ctx_pos < cmd_pos
+    assert state_pos < cmd_pos
+    # BOTTOM: Command comes before the output schema
+    assert cmd_pos < schema_pos
+    # Schema and final instruction are at the very end
+    assert schema_pos < generate_pos
+
+
+# ---------------------------------------------------------------------------
+# SMTP build_prompt — SMTP-specific instructions
+# ---------------------------------------------------------------------------
+
+
+def test_smtp_build_prompt_contains_smtp_instructions(smtp_strategy):
+    """The prompt must contain SMTP-specific role text and the incoming
+    command."""
+    request = {"command": "MAIL FROM:<spammer@evil.com>"}
+
+    prompt = smtp_strategy.build_prompt(request, "docs", "state")
+
+    assert "SMTP server" in prompt
+    assert "RFC 5321" in prompt
+    assert "MAIL FROM:<spammer@evil.com>" in prompt
+    assert "INCOMING SMTP COMMAND" in prompt
+
+
+# ---------------------------------------------------------------------------
+# SMTP parse_response — happy path
+# ---------------------------------------------------------------------------
+
+
+def test_smtp_parse_response_valid(smtp_strategy):
+    raw = json.dumps({"response": "250 2.1.0 Ok", "side_effects": []})
+    result = smtp_strategy.parse_response(raw)
+
+    assert result["response"] == "250 2.1.0 Ok"
+    assert result["side_effects"] == []
+
+
+# ---------------------------------------------------------------------------
+# SMTP parse_response — fallback wrapping
+# ---------------------------------------------------------------------------
+
+
+def test_smtp_parse_response_missing_keys(smtp_strategy):
+    """If the LLM returns valid JSON but without the canonical keys, wrap it."""
+    raw = json.dumps({"code": 250, "text": "Ok"})
+    result = smtp_strategy.parse_response(raw)
+
+    assert result["response"] == {"code": 250, "text": "Ok"}
+    assert result["side_effects"] == []
+
+
+# ---------------------------------------------------------------------------
+# SMTP parse_response — invalid JSON
+# ---------------------------------------------------------------------------
+
+
+def test_smtp_parse_response_invalid_json(smtp_strategy):
+    """Non-JSON input should still return the canonical envelope."""
+    result = smtp_strategy.parse_response("250 Ok")
+
+    assert "response" in result
+    assert "side_effects" in result
+    assert result["side_effects"] == []

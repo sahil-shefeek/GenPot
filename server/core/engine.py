@@ -11,7 +11,7 @@ import time
 
 from server import config_manager
 from server.core.models import UnifiedRequest, UnifiedResponse
-from server.core.prompting import HttpPromptStrategy
+from server.core.prompting import HttpPromptStrategy, SmtpPromptStrategy
 from server.llm_client import LLMRateLimitError, generate_response
 from server.logger import log_interaction
 from server.rag_system import RAGSystem
@@ -50,8 +50,11 @@ class GenPotEngine:
         context = self.rag_system.get_context(rag_query)
         state_context = self.state_manager.get_context(request.path, request.headers)
 
-        # --- Strategy (hardcoded to HTTP for now) ---
-        strategy = HttpPromptStrategy()
+        # --- Strategy (protocol-aware) ---
+        if request.protocol.lower() == "smtp":
+            strategy = SmtpPromptStrategy()
+        else:
+            strategy = HttpPromptStrategy()
         prompt = strategy.build_prompt(request_data, context, state_context)
 
         try:
