@@ -1,5 +1,6 @@
 # 🛡️ GenPot: An LLM-Powered Web API Honeypot
 
+[![Python Tests](https://github.com/sahil-shefeek/GenPot/actions/workflows/python-tests.yml/badge.svg)](https://github.com/sahil-shefeek/GenPot/actions/workflows/python-tests.yml)
 ![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Status](https://img.shields.io/badge/status-MVP%20Development-orange.svg)
