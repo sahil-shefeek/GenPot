@@ -43,12 +43,15 @@ class GenPotEngine:
             "path": request.path,
             "body": request.body,
             "headers": request.headers,
+            "command": request.command,
         }
 
         # --- Gather context ---
         rag_query = f"{request.method} {request.path}"
         context = self.rag_system.get_context(rag_query)
-        state_context = self.state_manager.get_context(request.path, request.headers)
+        state_context = self.state_manager.get_context(
+            request.path, request.headers, session_id=request.session_id
+        )
 
         # --- Strategy (protocol-aware) ---
         if request.protocol.lower() == "smtp":
