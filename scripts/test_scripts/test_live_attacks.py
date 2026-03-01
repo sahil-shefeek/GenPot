@@ -65,7 +65,7 @@ def run_attacks():
 
     # -- Initialize TestGenerator with absolute spec path --
     # Resolve from project root (assuming script is run via `python -m`)
-    from dashboard.test_generator import TestGenerator
+    from scripts.test_generator import TestGenerator
 
     default_spec = (
         Path(__file__).resolve().parents[2]

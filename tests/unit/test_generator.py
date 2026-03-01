@@ -1,5 +1,5 @@
 import yaml
-from dashboard.test_generator import TestGenerator as Generator
+from scripts.test_generator import TestGenerator as Generator
 
 
 def test_endpoint_extraction_success(tmp_path):
@@ -21,7 +21,7 @@ def test_endpoint_extraction_fallback():
 
 def test_test_case_generation_happy_path(mocker):
     mocker.patch(
-        "dashboard.test_generator.generate_response", return_value="dummy response"
+        "scripts.test_generator.generate_response", return_value="dummy response"
     )
 
     mock_valid_cases = [
@@ -34,7 +34,7 @@ def test_test_case_generation_happy_path(mocker):
         }
     ]
     mocker.patch(
-        "dashboard.test_generator.clean_llm_response", return_value=mock_valid_cases
+        "scripts.test_generator.clean_llm_response", return_value=mock_valid_cases
     )
 
     generator = Generator(spec_path="non_existent_file.yaml")
@@ -45,10 +45,10 @@ def test_test_case_generation_happy_path(mocker):
 
 def test_test_case_generation_error(mocker):
     mocker.patch(
-        "dashboard.test_generator.generate_response", return_value="dummy response"
+        "scripts.test_generator.generate_response", return_value="dummy response"
     )
     mocker.patch(
-        "dashboard.test_generator.clean_llm_response", return_value={"error": "Failed"}
+        "scripts.test_generator.clean_llm_response", return_value={"error": "Failed"}
     )
 
     generator = Generator(spec_path="non_existent_file.yaml")
@@ -59,14 +59,14 @@ def test_test_case_generation_error(mocker):
 
 def test_test_case_generation_malformed_keys(mocker):
     mocker.patch(
-        "dashboard.test_generator.generate_response", return_value="dummy response"
+        "scripts.test_generator.generate_response", return_value="dummy response"
     )
 
     mock_invalid_cases = [
         {"method": "GET", "headers": {}, "body": None, "description": "test"}
     ]
     mocker.patch(
-        "dashboard.test_generator.clean_llm_response", return_value=mock_invalid_cases
+        "scripts.test_generator.clean_llm_response", return_value=mock_invalid_cases
     )
 
     generator = Generator(spec_path="non_existent_file.yaml")
