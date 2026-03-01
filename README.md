@@ -152,39 +152,10 @@ You can run the entire system (Honeypot + Dashboard) using Docker Compose.
 
 ---
 
-
-## 📂 Project Structure
-
-```
-genpot_project/
-├── data/              # Raw OpenAPI/Swagger specification files
-├── knowledge_base/    # Stores the generated FAISS index
-├── logs/              # Contains the structured JSONL logs
-├── scripts/           # One-time scripts (e.g., ingest.py)
-├── server/            # The core FastAPI honeypot application
-├── dashboard/         # The Streamlit dashboard application
-├── finetuning/        # Post-MVP: Scripts for fine-tuning a local LLM
-├── .env               # Secret API keys (git-ignored)
-├── .gitignore         # Files to be ignored by Git
-├── pyproject.toml     # Project dependencies
-└── README.md          # You are here!
-```
-
----
-
-## 👥 The Team
-
-*   **Lead A:** RAG & Data Specialist
-*   **Lead B:** Decoy Server & LLM Specialist
-*   **Lead C:** Intelligence & UI Specialist
-*   **Lead D:** Project Lead & ML Engineer
-
----
-
 ## 📜 Citation
 
 This project is an implementation based on the following research paper:
-> Sezgin, A., & Boyacı, A. (2025). GenPot: A large language model-driven web API honeypot for realistic attacker engagement. *Computers & Security*, *154*, 104458.
+> Sezgin, A., & Boyacı, A. (2025). DecoyPot: A large language model-driven web API honeypot for realistic attacker engagement. *Computers & Security*, *154*, 104458.
 
 ---
 
