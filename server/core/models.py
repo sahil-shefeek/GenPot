@@ -18,6 +18,8 @@ class UnifiedRequest:
     path: str
     headers: Dict[str, str] = field(default_factory=dict)
     body: str = ""
+    session_id: str | None = None
+    command: str | None = None
 
 
 @dataclass

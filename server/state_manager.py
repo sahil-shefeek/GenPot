@@ -6,7 +6,7 @@ from typing import Dict, Any, List
 class StateManager:
     def __init__(self, state_file: str = "logs/world_state.json"):
         self.state_file = state_file
-        self.state = {"global": {}, "tokens": {}}
+        self.state = {"global": {}, "tokens": {}, "sessions": {}}
         self._load_state()
 
     def _load_state(self):
@@ -17,6 +17,7 @@ class StateManager:
                     if isinstance(data, dict):
                         self.state["global"] = data.get("global", {})
                         self.state["tokens"] = data.get("tokens", {})
+                        self.state["sessions"] = data.get("sessions", {})
             except (json.JSONDecodeError, IOError):
                 pass
 
@@ -27,7 +28,8 @@ class StateManager:
         tmp_file = f"{self.state_file}.tmp"
         try:
             with open(tmp_file, "w") as f:
-                json.dump(self.state, f, indent=2)
+                persistent = {k: v for k, v in self.state.items() if k != "sessions"}
+                json.dump(persistent, f, indent=2)
             os.replace(tmp_file, self.state_file)
         except IOError:
             if os.path.exists(tmp_file):
@@ -71,7 +73,9 @@ class StateManager:
 
         return json_str
 
-    def get_context(self, path: str, headers: Dict[str, str]) -> str:
+    def get_context(
+        self, path: str, headers: Dict[str, str], session_id: str = None
+    ) -> str:
         """
         Retrieves scoped context for the given path and headers.
         """
@@ -94,6 +98,12 @@ class StateManager:
             if session_data:
                 context["current_session"] = session_data
 
+        # 3. TCP Session State
+        if session_id:
+            tcp_session = self.state.get("sessions", {}).get(session_id)
+            if tcp_session:
+                context["current_session_state"] = tcp_session
+
         return self._sanitize_for_prompt(context)
 
     def apply_updates(self, side_effects: List[Dict[str, Any]]):
@@ -107,7 +117,7 @@ class StateManager:
             key = update.get("key")
             value = update.get("value")
 
-            if scope not in ["global", "tokens"] or not key:
+            if scope not in ["global", "tokens", "sessions"] or not key:
                 continue
 
             if action == "SET":
@@ -120,6 +130,10 @@ class StateManager:
 
         if has_changes:
             self._save_state()
+
+    def clear_session(self, session_id: str) -> None:
+        """Remove transient session state (called on TCP disconnect)."""
+        self.state.get("sessions", {}).pop(session_id, None)
 
 
 # Run simple tests if executed directly

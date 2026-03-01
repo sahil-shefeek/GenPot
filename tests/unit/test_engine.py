@@ -22,6 +22,8 @@ def _make_request(**overrides) -> UnifiedRequest:
         "path": "/api/users",
         "headers": {"authorization": "Bearer tok123"},
         "body": "",
+        "session_id": None,
+        "command": None,
     }
     defaults.update(overrides)
     return UnifiedRequest(**defaults)
@@ -86,6 +88,13 @@ async def test_process_happy_path(mock_engine, mocker):
     # Side effects applied
     mock_engine["state"].apply_updates.assert_called_once_with(
         [{"action": "SET", "scope": "global", "key": "/users/1", "value": {"id": 1}}]
+    )
+
+    # State manager called with session_id kwarg
+    mock_engine["state"].get_context.assert_called_once_with(
+        "/api/users",
+        {"authorization": "Bearer tok123"},
+        session_id=None,
     )
 
     # Interaction logged with status 200
