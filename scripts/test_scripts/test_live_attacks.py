@@ -9,6 +9,7 @@ Usage:
 """
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -66,7 +67,12 @@ def run_attacks():
     # Resolve from project root (assuming script is run via `python -m`)
     from dashboard.test_generator import TestGenerator
 
-    spec_path = Path(__file__).resolve().parents[2] / "data" / "github_api.yaml"
+    default_spec = (
+        Path(__file__).resolve().parents[2]
+        / "data"
+        / "api.github.com.2022-11-28.deref.yaml"
+    )
+    spec_path = Path(os.getenv("OPENAPI_SPEC_PATH", str(default_spec)))
 
     if not spec_path.exists():
         print(f"[!] ERROR: OpenAPI spec not found at {spec_path}")

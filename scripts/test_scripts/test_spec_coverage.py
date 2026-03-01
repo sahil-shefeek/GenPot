@@ -200,12 +200,15 @@ class SpecTester:
 
 def main():
     print("--- OpenAPI Statefulness Testing ---")
-    spec_path = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)), "data", "github_api.yaml"
+    default_spec = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        "data",
+        "api.github.com.2022-11-28.deref.yaml",
     )
+    spec_path = os.getenv("OPENAPI_SPEC_PATH", default_spec)
 
     if not os.path.exists(spec_path):
-        print(f"❌ Error: github_api.yaml not found at {spec_path}")
+        print(f"❌ Error: OpenAPI spec not found at {spec_path}")
         return
 
     tester = SpecTester(spec_path)

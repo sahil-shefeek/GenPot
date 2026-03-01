@@ -95,10 +95,14 @@ Follow these steps to get a working MVP of the GenPot system running locally.
     *   **macOS / Linux:** `source .venv/bin/activate`
     *   **Windows:** `.venv\Scripts\activate`
 
-4.  **Configure your API Key:**
+4.  **Configure your environment:**
     Create a file named `.env` in the root of the project. **This file is git-ignored and must not be shared.**
     ```    # .env
     GOOGLE_API_KEY="YOUR_GEMINI_API_KEY_HERE"
+
+    # (Optional) Path to the OpenAPI spec file used by attack scripts and test generators.
+    # Defaults to data/api.github.com.2022-11-28.deref.yaml
+    OPENAPI_SPEC_PATH="data/api.github.com.2022-11-28.deref.yaml"
     ```
 
 ## ⚙️ Usage

@@ -1,35 +1,39 @@
+import os
 import yaml
 import random
 from typing import List, Dict, Any
 from server.llm_client import generate_response
 from server.utils import clean_llm_response
 
+DEFAULT_SPEC_PATH = "data/api.github.com.2022-11-28.deref.yaml"
+
 
 class TestGenerator:
     """
     Generates synthetic attack test cases for the honeypot using an LLM.
     """
-    def __init__(self, spec_path: str = "data/github_api.yaml"):
-        self.spec_path = spec_path
+
+    def __init__(self, spec_path: str = None):
+        self.spec_path = spec_path or os.getenv("OPENAPI_SPEC_PATH", DEFAULT_SPEC_PATH)
         self.api_endpoints = self._load_github_endpoints()
 
     def _load_github_endpoints(self) -> List[str]:
         """Parses the OpenAPI spec to extract available paths and methods."""
         try:
-            with open(self.spec_path, 'r', encoding='utf-8') as f:
+            with open(self.spec_path, "r", encoding="utf-8") as f:
                 spec = yaml.safe_load(f)
-            
+
             endpoints = []
             # Extract paths and HTTP methods from the loaded YAML
-            for path, path_items in spec.get('paths', {}).items():
+            for path, path_items in spec.get("paths", {}).items():
                 for method in path_items.keys():
-                    if method.lower() in ['get', 'post', 'put', 'patch', 'delete']:
+                    if method.lower() in ["get", "post", "put", "patch", "delete"]:
                         endpoints.append(f"{method.upper()} {path}")
             return endpoints
         except Exception as e:
             print(f"Error loading OpenAPI spec: {e}")
             # Fallback endpoints just in case the file is missing
-            return ["GET /", "POST /repos/{owner}/{repo}/issues"] 
+            return ["GET /", "POST /repos/{owner}/{repo}/issues"]
 
     def generate_test_cases(
         self, n: int, provider: str, model: str
