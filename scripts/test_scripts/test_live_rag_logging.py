@@ -189,7 +189,8 @@ def test_log_writing():
                 continue
             try:
                 entry = json.loads(line)
-                if entry.get("path") == test_path:
+                # ECS schema: path is nested under url.path
+                if entry.get("url", {}).get("path") == test_path:
                     found_entry = entry
                     break
             except json.JSONDecodeError:
@@ -203,21 +204,27 @@ def test_log_writing():
         print(f"       Searched last {min(20, len(lines))} lines of {LOG_FILE.name}")
         return False
 
-    # Verify required telemetry keys
-    required_keys = ["rag_query", "similarity_score", "response_time_ms", "response"]
-    missing_keys = [k for k in required_keys if k not in found_entry]
+    # Verify required ECS telemetry structure
+    genpot = found_entry.get("genpot", {})
+    required_genpot_keys = ["rag_query", "similarity_score", "latency_ms"]
+    missing_keys = [k for k in required_genpot_keys if k not in genpot]
+
+    http_response = found_entry.get("http", {}).get("response", {})
+    if not http_response:
+        missing_keys.append("http.response")
 
     if missing_keys:
         print(f"    ❌ FAIL — Log entry missing keys: {missing_keys}")
-        print(f"       Available keys: {list(found_entry.keys())}")
+        print(f"       Available top-level keys: {list(found_entry.keys())}")
         return False
 
-    print("    ✅ PASS — Log entry found and verified!")
-    print(f"       rag_query:        {found_entry['rag_query']}")
-    print(f"       similarity_score: {found_entry['similarity_score']}")
-    print(f"       response_time_ms: {found_entry['response_time_ms']:.0f}ms")
+    response_body = http_response.get("body", {}).get("content", {})
+    print("    ✅ PASS — Log entry found and verified (ECS schema)!")
+    print(f"       genpot.rag_query:        {genpot['rag_query']}")
+    print(f"       genpot.similarity_score: {genpot['similarity_score']}")
+    print(f"       genpot.latency_ms:       {genpot['latency_ms']:.0f}ms")
     print(
-        f"       response keys:    {list(found_entry['response'].keys()) if isinstance(found_entry['response'], dict) else type(found_entry['response']).__name__}"
+        f"       response body keys:      {list(response_body.keys()) if isinstance(response_body, dict) else type(response_body).__name__}"
     )
 
     return True
