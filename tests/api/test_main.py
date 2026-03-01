@@ -56,8 +56,9 @@ def test_decoy_endpoint_happy_path(mock_dependencies, mocker):
     assert response.json() == {"message": "success"}
 
     mock_dependencies["log_interaction"].assert_called_once()
-    call_args = mock_dependencies["log_interaction"].call_args[0][0]
-    assert call_args["status_code"] == 200
+    call_kwargs = mock_dependencies["log_interaction"].call_args[1]
+    assert call_kwargs["response_data"]["status_code"] == 200
+    assert call_kwargs["protocol"] == "http"
 
 
 def test_decoy_endpoint_side_effects(mock_dependencies, mocker):
@@ -89,8 +90,9 @@ def test_decoy_endpoint_rate_limit(mock_dependencies, mocker):
     assert response.json()["retry_after"] == "60s"
 
     mock_dependencies["log_interaction"].assert_called_once()
-    call_args = mock_dependencies["log_interaction"].call_args[0][0]
-    assert call_args["status_code"] == 429
+    call_kwargs = mock_dependencies["log_interaction"].call_args[1]
+    assert call_kwargs["response_data"]["status_code"] == 429
+    assert call_kwargs["error"] is not None
 
 
 def test_decoy_endpoint_internal_server_error(mock_dependencies, mocker):
@@ -105,5 +107,6 @@ def test_decoy_endpoint_internal_server_error(mock_dependencies, mocker):
     assert "error" in response.json()
 
     mock_dependencies["log_interaction"].assert_called_once()
-    call_args = mock_dependencies["log_interaction"].call_args[0][0]
-    assert call_args["status_code"] == 500
+    call_kwargs = mock_dependencies["log_interaction"].call_args[1]
+    assert call_kwargs["response_data"]["status_code"] == 500
+    assert call_kwargs["error"] is not None

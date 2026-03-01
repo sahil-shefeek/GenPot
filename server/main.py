@@ -45,15 +45,12 @@ async def decoy_api_endpoint(request: Request, full_path: str):
 
     headers_dict = dict(request.headers)
 
-    base_event = {
-        "event": "interaction",
-        "ip": client_ip,
+    request_data = {
         "method": method,
         "path": path,
         "body": body_str,
         "headers": headers_dict,
     }
-    # Removed early log_interaction call to consolidate logs
 
     rag_query = f"{method} {path}"
     context = rag_system.get_context(rag_query)
@@ -109,32 +106,34 @@ async def decoy_api_endpoint(request: Request, full_path: str):
         response_time_ms = (time.time() - start_time) * 1000
 
         log_interaction(
-            {
-                **base_event,
+            protocol="http",
+            source_ip=client_ip,
+            request_data=request_data,
+            response_data={"status_code": 200, "body": api_response},
+            genpot_metrics={
                 "rag_query": rag_query,
-                "context": context,
-                "response": api_response,
-                "state_actions": side_effects,
-                "status_code": 200,
-                "response_time_ms": response_time_ms,
-                "provider": provider,
-                "model": model,
+                "rag_context": context,
                 "similarity_score": round(similarity_score, 4),
-            }
+                "llm_provider": provider,
+                "llm_model": model,
+                "latency_ms": response_time_ms,
+                "state_actions": side_effects,
+            },
         )
         return JSONResponse(content=api_response)
     except LLMRateLimitError as e:
         response_time_ms = (time.time() - start_time) * 1000
         log_interaction(
-            {
-                **base_event,
+            protocol="http",
+            source_ip=client_ip,
+            request_data=request_data,
+            response_data={"status_code": 429},
+            genpot_metrics={
                 "rag_query": rag_query,
-                "context": context,
-                "error": str(e),
-                "event_status": "error_rate_limit",
-                "status_code": 429,
-                "response_time_ms": response_time_ms,
-            }
+                "rag_context": context,
+                "latency_ms": response_time_ms,
+            },
+            error=str(e),
         )
         return JSONResponse(
             status_code=429,
@@ -146,14 +145,16 @@ async def decoy_api_endpoint(request: Request, full_path: str):
     except Exception as e:
         response_time_ms = (time.time() - start_time) * 1000
         log_interaction(
-            {
-                **base_event,
+            protocol="http",
+            source_ip=client_ip,
+            request_data=request_data,
+            response_data={"status_code": 500},
+            genpot_metrics={
                 "rag_query": rag_query,
-                "context": context,
-                "error": str(e),
-                "status_code": 500,
-                "response_time_ms": response_time_ms,
-            }
+                "rag_context": context,
+                "latency_ms": response_time_ms,
+            },
+            error=str(e),
         )
         return JSONResponse(
             content={"error": "An internal server error occurred."},
