@@ -1,50 +1,23 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+# server/main.py
+"""
+Bootstrap script — wires core dependencies and starts the HTTP emulator.
+"""
 
-from .core.engine import GenPotEngine
-from .core.models import UnifiedRequest
-from .rag_system import RAGSystem
-from .state_manager import StateManager
+from server.core.engine import GenPotEngine
+from server.emulators.http_emulator import create_http_app
+from server.rag_system import RAGSystem
+from server.state_manager import StateManager
 
 # Initialize subsystems and engine
 rag_system = RAGSystem()
 state_manager = StateManager()
 engine = GenPotEngine(rag_system=rag_system, state_manager=state_manager)
 
-app = FastAPI()
+# Create the HTTP application
+app = create_http_app(engine, rag_system)
 
+if __name__ == "__main__":
+    import uvicorn
 
-class RAGInspectRequest(BaseModel):
-    query: str
-    top_k: int | None = None
-
-
-@app.post("/api/rag-inspect")
-async def inspect_rag(request: RAGInspectRequest):
-    result = rag_system.inspect_query(request.query, request.top_k)
-    return result
-
-
-@app.api_route(
-    "/{full_path:path}",
-    methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
-)
-async def decoy_api_endpoint(request: Request, full_path: str):
-    body_bytes = await request.body()
-
-    unified_req = UnifiedRequest(
-        protocol="http",
-        source_ip=request.client.host if request.client else "",
-        method=request.method,
-        path="/" + full_path,
-        headers=dict(request.headers),
-        body=body_bytes.decode("utf-8", errors="ignore"),
-    )
-
-    response = await engine.process(unified_req)
-
-    return JSONResponse(
-        status_code=response.status_code,
-        content=response.data,
-    )
+    # Read port from config later, default 8000 for now
+    uvicorn.run("server.main:app", host="0.0.0.0", port=8000, reload=True)
