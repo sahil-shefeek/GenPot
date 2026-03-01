@@ -1,0 +1,20 @@
+core:
+  log_level: "INFO"
+
+llm_defaults:
+  provider: "gemini"
+  model: "gemini-2.5-flash"
+  analysis_provider: "gemini"
+  analysis_model: "gemini-2.5-flash"
+
+emulators:
+  http:
+    enabled: true
+    port: 8000
+    # Inherits provider and model from llm_defaults if omitted
+
+  smtp:
+    enabled: false # We will enable this in a future prompt
+    port: 8025 # Non-privileged port for local dev
+    provider: "ollama" # Overrides default
+    model: "phi4-mini" # Overrides default
