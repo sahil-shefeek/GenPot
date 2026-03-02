@@ -1,159 +1,78 @@
-# 🛡️ GenPot: An LLM-Powered Web API Honeypot
+# 🛡️ GenPot: An LLM-Powered, Multi-Protocol Web API & SMTP Honeypot
 
 [![Python Tests](https://github.com/sahil-shefeek/GenPot/actions/workflows/python-tests.yml/badge.svg)](https://github.com/sahil-shefeek/GenPot/actions/workflows/python-tests.yml)
 ![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Status](https://img.shields.io/badge/status-MVP%20Development-orange.svg)
 
-A modern, high-interaction, AI-driven Web API honeypot designed to realistically engage and analyze sophisticated attackers. This project is the implementation of the research paper: *"GenPot: A large language model-driven web API honeypot for realistic attacker engagement"* \cite{sezgin2025genpot}.
+## 🎯 Project Overview
 
----
+GenPot is a next-generation, high-interaction honeypot implemented as an **LLM-Powered, Multi-Protocol Web API & SMTP Honeypot**. 
 
-## 📖 Table of Contents
-
-- [The Problem](#-the-problem)
-- [Our Solution: GenPot](#-our-solution-genpot)
-- [Core Features](#-core-features)
-- [System Architecture](#-system-architecture)
-- [Technology Stack](#-technology-stack)
-- [Getting Started](#-getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Installation & Setup](#installation--setup)
-- [Usage](#-usage)
-  - [1. Build the Knowledge Base](#1-build-the-knowledge-base)
-  - [2. Run the Honeypot Server](#2-run-the-honeypot-server)
-  - [3. Launch the Dashboard](#3-launch-the-dashboard)
-- [Project Structure](#-project-structure)
-- [The Team](#-the-team)
-- [Citation](#-citation)
-- [License](#-license)
+Traditional honeypots use pre-scripted, canned responses that sophisticated adversaries easily identify. GenPot solves this by implementing the **DecoyPot methodology**. It leverages a **Retrieval-Augmented Generation (RAG)** framework and **Large Language Models (LLMs)** to act as the honeypot's "brain." This allows GenPot to generate dynamic, context-aware, and highly realistic decoy responses on the fly, effectively engaging attackers while preventing LLM hallucinations by grounding responses in real API and protocol documentation.
 
 ---
 
-## 🎯 The Problem
+## 🏗️ Architecture (The 4-Layer Model)
 
-Traditional honeypots are static and predictable. They use pre-scripted, canned responses that are easily identified by sophisticated adversaries (like APT groups). As a result, they fail to engage the very attackers we want to study, limiting the quality of the threat intelligence we can gather. There is a need for a dynamic decoy that can generate believable, context-aware responses on the fly.
+GenPot has recently undergone a massive architectural shift to support multiple protocols and enterprise-grade telemetry. The system is divided into four distinct layers:
 
-## 💡 Our Solution: GenPot
+### Layer 1: Ingress (Emulators)
+The ingress layer handles incoming network traffic across different protocols and normalizes it into standard `UnifiedRequest` objects.
+- **HTTP Emulator** (`http_emulator.py`): Built with FastAPI, it captures and normalizes RESTful API attacks.
+- **SMTP Emulator** (`smtp_emulator.py`): Built with AsyncIO, it acts as a mail server honeypot, capturing SMTP commands and payloads.
 
-GenPot is a next-generation honeypot that uses a **Large Language Model (LLM)** as its "brain" to create a dynamic and believable decoy. To solve the problem of LLM "hallucinations," GenPot is built on a **Retrieval-Augmented Generation (RAG)** framework. This grounds the LLM in the real documentation of the API it's mimicking, ensuring all responses are not only plausible but also structurally and semantically correct.
+### Layer 2: Core Engine
+The centralized processing hub of the honeypot.
+- **`GenPotEngine`**: The orchestrator that processes `UnifiedRequest` objects.
+- **`PromptStrategy` Pattern**: Implements dynamic routing for LLM interactions. It routes requests to the appropriate strategy (e.g., `HttpPromptStrategy`, `SmtpPromptStrategy`) to generate protocol-specific, context-aware prompts.
+- **`StateManager`**: Manages interaction context, including a transient `sessions` scope to maintain state for individual TCP connections during multi-step attacks.
 
-The goal is to create a decoy so realistic that it can:
-1.  **Engage** sophisticated attackers for prolonged periods.
-2.  **Capture** their Tactics, Techniques, and Procedures (TTPs).
-3.  **Generate** high-quality, actionable Cyber Threat Intelligence (CTI).
+### Layer 3: Telemetry
+Instead of fragmented logs, GenPot standardizes all logging using the **Elastic Common Schema (ECS)**. All network events, protocol-specific metadata, and AI generation metrics are structured into ECS-compliant JSON lines and written to `logs/honeypot.jsonl`.
 
-## ✨ Core Features
+### Layer 4: Dashboard
+The legacy Streamlit UI has been deprecated in favor of a robust **ELK Stack** (Elasticsearch, Logstash/Filebeat, Kibana). Filebeat ingests the ECS logs, and Kibana provides a powerful SOC dashboard to visualize attacker tactics, techniques, and procedures (TTPs) in real-time.
 
-*   **🧠 Dynamic Response Generation:** Uses an LLM (e.g., Google Gemini, Llama-3) to generate unique, context-aware API responses in real-time.
-*   **📚 RAG for Accuracy:** Grounds the LLM in real API documentation (OpenAPI/Swagger specs) to prevent hallucinations and ensure responses adhere to the correct schema.
-*   **📊 Live Threat Intelligence Dashboard:** A real-time dashboard built with Streamlit to visualize attacker activity, including geographic locations and most targeted endpoints.
-*   **📦 Modular and Scalable:** Designed with a clean, separated architecture to be easily extended and maintained.
+---
 
-## 🏗️ System Architecture
+## 🚀 Quickstart Guide
 
-The GenPot system follows a RAG pipeline to process incoming requests and generate high-fidelity responses.
+Follow these steps to deploy the full GenPot system (Honeypot + SIEM) locally.
 
-![GenPot Architecture Diagram](.github/genpot_architecture.png)
+1. **Install dependencies:**
+   ```bash
+   uv sync
+   ```
 
-## 🛠️ Technology Stack
+2. **Start the SIEM (ELK Stack):**
+   ```bash
+   docker compose up -d
+   ```
 
-| Category | Technology |
-| :--- | :--- |
-| **Backend** | Python 3.10+, FastAPI |
-| **AI / ML** | Google Gemini API, Hugging Face `transformers`, `sentence-transformers`, `peft`, `bitsandbytes`, PyTorch |
-| **Vector Search** | FAISS (Facebook AI Similarity Search) |
-| **Dashboard** | Streamlit, Pandas |
-| **Environment** | `uv` (Python Package Manager) |
+3. **Start the Honeypot:**
+   ```bash
+   uv run python -m server.main
+   ```
 
-## 🚀 Getting Started
+4. **Access Kibana:**
+   Open your browser and navigate to the SOC dashboard:
+   [http://localhost:5601](http://localhost:5601)
 
-Follow these steps to get a working MVP of the GenPot system running locally.
+---
 
-### Prerequisites
+## ⚔️ Testing & Attack Simulation
 
-*   Python 3.10 or higher
-*   `git` for cloning the repository
-*   `uv` Python package manager (`pip install uv`)
-*   A **Google Gemini API Key** from [Google AI Studio](https://aistudio.google.com/app/apikey).
+GenPot includes automated attack scripts to verify functionality and simulate adversary behavior. Run these in a separate terminal while the honeypot is active.
 
-### Installation & Setup
+- **Simulate HTTP Attacks:**
+  ```bash
+  uv run python -m scripts.test_scripts.test_live_attacks
+  ```
 
-1.  **Clone the repository:**
-    ```bash
-    git clone [Your-Repository-URL]
-    cd genpot_project
-    ```
-
-2.  **Create and sync the virtual environment:**
-    `uv` will automatically create a `.venv` folder and install all the exact package versions from the `uv.lock` file.
-    ```bash
-    uv sync
-    ```
-
-3.  **Activate the environment:**
-    *   **macOS / Linux:** `source .venv/bin/activate`
-    *   **Windows:** `.venv\Scripts\activate`
-
-4.  **Configure your environment:**
-    Create a file named `.env` in the root of the project. **This file is git-ignored and must not be shared.**
-    ```    # .env
-    GOOGLE_API_KEY="YOUR_GEMINI_API_KEY_HERE"
-
-    # (Optional) Path to the OpenAPI spec file used by attack scripts and test generators.
-    # Defaults to data/api.github.com.2022-11-28.deref.yaml
-    OPENAPI_SPEC_PATH="data/api.github.com.2022-11-28.deref.yaml"
-    ```
-
-## ⚙️ Usage
-
-The project is run in three distinct steps. The server and dashboard should be run in separate terminals.
-
-### 1. Build the Knowledge Base
-
-This is a **one-time step** you must run first. This script reads the API documentation from the `/data` folder and builds the searchable FAISS index.
-
-```bash
-python scripts/ingest.py
-```
-This will create the necessary index files in the `/knowledge_base` directory.
-
-### 2. Run the Honeypot Server
-
-This command starts the main FastAPI server. This is the live honeypot.
-
-```bash
-uvicorn server.main:app --reload
-```
-The server will be running on `http://localhost:8000`.
-
-### 3. Launch the Dashboard
-
-In a **new terminal**, activate the environment again and run the Streamlit dashboard.
-
-```bash
-streamlit run dashboard/app.py
-```
-Your browser will open with the live threat intelligence dashboard, which will auto-refresh as the honeypot receives traffic.
-
-
-## 🐳 Deployment (Docker)
-
-You can run the entire system (Honeypot + Dashboard) using Docker Compose.
-
-1.  **Build and Run:**
-    ```bash
-    docker compose up --build
-    ```
-
-2.  **Access Services:**
-    *   **Honeypot API:** `http://localhost:8000`
-    *   **Dashboard:** `http://localhost:8501`
-
-3.  **Stop Services:**
-    ```bash
-    docker compose down
-    ```
+- **Simulate SMTP Attacks:**
+  ```bash
+  uv run python -m scripts.test_scripts.test_smtp_attack
+  ```
 
 ---
 
@@ -161,8 +80,6 @@ You can run the entire system (Honeypot + Dashboard) using Docker Compose.
 
 This project is an implementation based on the following research paper:
 > Sezgin, A., & Boyacı, A. (2025). DecoyPot: A large language model-driven web API honeypot for realistic attacker engagement. *Computers & Security*, *154*, 104458.
-
----
 
 ## ⚖️ License
 
