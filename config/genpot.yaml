@@ -14,7 +14,7 @@ emulators:
     # Inherits provider and model from llm_defaults if omitted
 
   smtp:
-    enabled: false # We will enable this in a future prompt
+    enabled: true
     port: 8025 # Non-privileged port for local dev
     provider: "ollama" # Overrides default
     model: "phi4-mini" # Overrides default
