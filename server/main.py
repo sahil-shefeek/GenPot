@@ -1,5 +1,9 @@
+import asyncio
+import functools
 import time
 
+import asyncssh
+import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -9,6 +13,8 @@ from .llm_client import LLMRateLimitError, generate_response
 from .logger import log_interaction
 from .prompt_manager import craft_prompt
 from .rag_system import RAGSystem
+from .ssh_adapter import SSHServer, handle_ssh_session
+from .ssh_server import _KEY_PATH
 from .state_manager import StateManager
 from .utils import clean_llm_response
 
@@ -159,3 +165,95 @@ async def decoy_api_endpoint(request: Request, full_path: str):
             content={"error": "An internal server error occurred."},
             status_code=500,
         )
+
+
+# ── Concurrent server launch ──────────────────────────────────────────────────
+
+async def start_api_server(host: str = "0.0.0.0", port: int = 8000) -> None:
+    """
+    Serve the FastAPI application with uvicorn inside the running event loop.
+
+    ``loop="none"`` instructs uvicorn not to spin up its own event loop — it
+    uses the one already managed by ``asyncio.run()`` in ``main()``.
+    """
+    config = uvicorn.Config(
+        app,
+        host=host,
+        port=port,
+        log_level="info",
+        loop="none",
+    )
+    server = uvicorn.Server(config)
+    print(f"[HTTP] FastAPI honeypot listening on http://{host}:{port}")
+    await server.serve()
+
+
+async def start_ssh_server(host: str = "0.0.0.0", port: int = 2222) -> None:
+    """
+    Start the AsyncSSH honeypot using the process-factory integration path.
+
+    *Server factory* – ``SSHServer`` (the public alias for ``_GenPotSSHServer``)
+    handles connection-level auth: it logs every credential attempt via
+    ``validate_password`` and accepts all of them so attackers walk straight in.
+
+    *Process factory* – ``handle_ssh_session`` drives each interactive session:
+    MOTD banner, local ``cd`` resolution, LLM round-trip via
+    ``run_in_executor``, ``<SIDE_EFFECT>`` parsing, typewriter output, and
+    ``log_interaction`` logging.
+
+    The host key is persisted at ``logs/ssh_host_key``.  A fresh ED25519 key is
+    generated on first boot; subsequent restarts reload it so clients don't see
+    a host-key-changed warning.
+    """
+    _KEY_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    if _KEY_PATH.exists():
+        host_key = asyncssh.read_private_key(str(_KEY_PATH))
+        print(f"[SSH]  Loaded persistent host key from {_KEY_PATH}")
+    else:
+        host_key = asyncssh.generate_private_key("ssh-ed25519")
+        host_key.write_private_key(str(_KEY_PATH))
+        print(f"[SSH]  Generated new ED25519 host key \u2192 {_KEY_PATH}")
+
+    server = await asyncssh.create_server(
+        lambda: SSHServer(state_manager),
+        host,
+        port,
+        server_host_keys=[host_key],
+        process_factory=functools.partial(
+            handle_ssh_session, state_manager=state_manager
+        ),
+    )
+    print(f"[SSH]  AsyncSSH honeypot listening on {host}:{port}")
+    async with server:
+        await server.wait_closed()
+
+
+async def main(
+    host: str = "0.0.0.0",
+    http_port: int = 8000,
+    ssh_port: int = 2222,
+) -> None:
+    """
+    Launch the HTTP and SSH honeypot servers concurrently.
+
+    Both servers run inside the **same** asyncio event loop and share the
+    module-level ``state_manager`` instance, so filesystem mutations from either
+    protocol are immediately visible on the other.
+
+    ``asyncio.gather`` propagates the first fatal exception, bringing the whole
+    process down cleanly rather than silently continuing with one server dead.
+    """
+    print(f"[*]   Starting GenPot — HTTP on :{http_port}, SSH on :{ssh_port}")
+    print("[*]   Press Ctrl-C to stop both servers.\n")
+    await asyncio.gather(
+        start_api_server(host, http_port),
+        start_ssh_server(host, ssh_port),
+    )
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n[*] Shutting down GenPot \u2014 goodbye.")
