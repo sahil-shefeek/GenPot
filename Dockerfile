@@ -12,15 +12,16 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-install-project --no-dev
 
-# Copy application code
+# Copy application code and config
+COPY config/ config/
 COPY server/ server/
 COPY data/ data/
 COPY knowledge_base/ knowledge_base/
 COPY scripts/ scripts/
 COPY entrypoint.sh .
 
-# Expose ports
-EXPOSE 8000
+# Expose ports (HTTP and SMTP)
+EXPOSE 8000 8025
 
 # Make entrypoint executable
 RUN chmod +x entrypoint.sh

@@ -3,6 +3,7 @@ services:
     build: .
     ports:
       - "8000:8000"
+      - "8025:8025"
     volumes:
       - ./logs:/app/logs
     env_file:
