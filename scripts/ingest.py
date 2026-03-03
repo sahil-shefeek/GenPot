@@ -5,7 +5,7 @@ import os
 import yaml
 import pickle
 
-API_SPEC_PATH = 'data/github_api.yaml'
+API_SPEC_PATH = 'data/api.github.com.2022-11-28.deref.yaml'
 INDEX_PATH = 'knowledge_base/api_index.faiss'
 MAPPING_PATH = 'knowledge_base/index_to_chunk.pkl'
 META_PATH = 'knowledge_base/index_metadata.pkl'  # new
@@ -39,7 +39,7 @@ def create_knowledge_base():
     print(f"Created {len(chunks)} chunks.")
 
     print("Generating embeddings...")
-    model = SentenceTransformer("sentence-transformers/multi-qa-MiniLM-L6-cos-v1")
+    model = SentenceTransformer("BAAI/bge-small-en-v1.5")
     texts = [c["text"] for c in chunks]
     embeddings = model.encode(
         texts,

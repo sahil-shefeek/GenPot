@@ -1,0 +1,83 @@
+[*] No seed provided — using random Faker values
+
+[*] Pre-flight: Checking server at http://localhost:8000 ...
+[*] Pre-flight: Server is reachable. ✅
+
+[*] Loading OpenAPI spec from:
+    /home/rozaliacv/Desktop/rozu/genpot/decoy-pot/data/api.github.com.2022-11-28.deref.yaml
+
+[*] Extracted 1079 endpoints from spec.
+
+[*] Loading encoder model: BAAI/bge-small-en-v1.5 ...
+[*] Encoder loaded. ✅
+
+
+
+══════════════════════════════════════════════════════════════════════
+  RAG RETRIEVAL ACCURACY REPORT
+══════════════════════════════════════════════════════════════════════
+  Faker Seed:               random
+  Encoder Model:            BAAI/bge-small-en-v1.5
+──────────────────────────────────────────────────────────────────────
+  Total Endpoints Tested:   1079
+  Successful Retrievals:    985
+  Missed Retrievals:        94
+  Elapsed Time:             69.3s
+──────────────────────────────────────────────────────────────────────
+  PATH-MATCH ACCURACY:      91.29%
+  AVG SEMANTIC SIMILARITY:  87.89%
+══════════════════════════════════════════════════════════════════════
+
+  Missed Query Diagnostics (3 of 94):
+
+  ──────────────────────────────────────────────────────────────────
+  Miss #1
+    Endpoint:     [GET] /advisories/{ghsa_id}
+    Faked Query:  GET /advisories/9227
+    Expected:     Get a global security advisory. Gets a global security advisory using its GitHub Security Advisory (GHSA) identifier
+    Retrieved 3 chunk(s):
+      Chunk 1 (dist=0.7135): /advisories:
+  get:
+    description: 'Lists all global security advisories that match the specifi...
+      Chunk 2 (dist=0.6873): /orgs/{org}/security-advisories:
+  get:
+    description: 'Lists repository security advisories fo...
+      Chunk 3 (dist=0.6783): /repos/{owner}/{repo}/code-scanning/alerts/{alert_number}:
+  get:
+    description: 'Gets a single...
+  ──────────────────────────────────────────────────────────────────
+  Miss #2
+    Endpoint:     [GET] /enterprises/{enterprise}/teams
+    Faked Query:  GET /enterprises/marquezmelissa/teams
+    Expected:     List enterprise teams. List all teams in the enterprise for the authenticated user
+    Retrieved 3 chunk(s):
+      Chunk 1 (dist=0.7804): /teams/{team_id}:
+  get:
+    deprecated: true
+    description: '> [!WARNING]
+
+      > **Endpoint ...
+      Chunk 2 (dist=0.7803): /orgs/{org}/teams/{team_slug}/repos:
+  get:
+    description: 'Lists a team''s repositories visibl...
+      Chunk 3 (dist=0.7780): /teams/{team_id}/members/{username}:
+  get:
+    deprecated: true
+    description: 'The "Get team ...
+  ──────────────────────────────────────────────────────────────────
+  Miss #3
+    Endpoint:     [POST] /enterprises/{enterprise}/teams/{enterprise-team}/organizations/remove
+    Faked Query:  POST /enterprises/vhorne/teams/baby/organizations/remove
+    Expected:     Remove organization assignments. Unassign an enterprise team from multiple organizations
+    Retrieved 3 chunk(s):
+      Chunk 1 (dist=0.7581): /enterprises/{enterprise}/teams/{enterprise-team}/memberships/remove:
+  post:
+    description: Re...
+      Chunk 2 (dist=0.7568): /enterprises/{enterprise}/teams/{team_slug}:
+  delete:
+    description: 'To delete an enterprise ...
+      Chunk 3 (dist=0.7557): /orgs/{org}/teams/{team_slug}:
+  delete:
+    description: 'To delete a team, the authenticated us...
+  ──────────────────────────────────────────────────────────────────
+

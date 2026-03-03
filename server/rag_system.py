@@ -15,7 +15,7 @@ class RAGSystem:
         index_path: Path | str | None = None,
         mapping_path: Path | str | None = None,
         meta_path: Path | str | None = None, # Added meta_path
-        model_name: str = "sentence-transformers/multi-qa-MiniLM-L6-cos-v1", # FIXED model mismatch
+        model_name: str = "BAAI/bge-small-en-v1.5", # FIXED model mismatch
         top_k: int = 3,
     ):
         base_dir = Path(__file__).resolve().parents[1]

@@ -57,7 +57,7 @@ from tqdm import tqdm
 
 BASE_URL = "http://localhost:8000"
 REQUEST_TIMEOUT = 30  # seconds per request
-ENCODER_MODEL = "sentence-transformers/multi-qa-MiniLM-L6-cos-v1"
+ENCODER_MODEL = "BAAI/bge-small-en-v1.5"
 
 SPEC_PATH = (
     Path(__file__).resolve().parents[2]
