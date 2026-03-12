@@ -66,6 +66,12 @@ This mode runs the entire stack (Honeypot + SIEM) in Docker containers.
    docker compose up --build -d
    ```
 
+2. **Start SIEM services only (Optional):**
+   If you only need the telemetry stack (Elasticsearch, Kibana, Filebeat), use:
+   ```bash
+   docker compose up -d elasticsearch kibana filebeat
+   ```
+
 ---
 
 ## 📊 Accessing the SIEM Dashboard
