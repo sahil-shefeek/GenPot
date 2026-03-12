@@ -1,16 +1,16 @@
 filebeat.inputs:
-- type: filestream
-  id: genpot-logs
-  paths:
-    - /usr/share/filebeat/logs/honeypot.jsonl
-  parsers:
-    - ndjson:
-        target: ""
-        overwrite_keys: true
-        add_error_key: true
+  - type: filestream
+    id: genpot-logs
+    paths:
+      - /usr/share/filebeat/logs/honeypot.jsonl
+    parsers:
+      - ndjson:
+          target: ""
+          overwrite_keys: true
+          add_error_key: true
 
 output.elasticsearch:
-  hosts: ["elasticsearch:9200"]
+  hosts: ["http://elasticsearch:9200"] # <-- ADDED http://
 
 setup.kibana:
-  host: "kibana:5601"
+  host: "http://kibana:5601" # <-- ADDED http://
