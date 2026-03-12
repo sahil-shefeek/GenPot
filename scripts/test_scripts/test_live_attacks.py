@@ -21,7 +21,7 @@ import requests
 # =============================================================================
 
 BASE_URL = "http://localhost:8000"
-REQUEST_TIMEOUT = 60  # seconds — LLM generation can be slow
+REQUEST_TIMEOUT = 180  # seconds — LLM generation can be slow
 NUM_ATTACKS = 3
 LLM_PROVIDER = "gemini"
 LLM_MODEL = "gemini-2.5-flash"
@@ -39,7 +39,7 @@ def preflight_check():
     """
     print(f"[*] Pre-flight: Checking server at {BASE_URL} ...")
     try:
-        requests.get(f"{BASE_URL}/", timeout=REQUEST_TIMEOUT)
+        requests.get(f"{BASE_URL}/api/health", timeout=10)
         print("[*] Pre-flight: Server is reachable. ✅\n")
     except requests.exceptions.ConnectionError:
         print(

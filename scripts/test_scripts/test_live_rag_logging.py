@@ -43,7 +43,7 @@ def preflight_check():
     """
     print(f"[*] Pre-flight: Checking server at {BASE_URL} ...")
     try:
-        requests.get(f"{BASE_URL}/", timeout=REQUEST_TIMEOUT)
+        requests.get(f"{BASE_URL}/api/health", timeout=10)
         print("[*] Pre-flight: Server is reachable. ✅\n")
     except requests.exceptions.ConnectionError:
         print(

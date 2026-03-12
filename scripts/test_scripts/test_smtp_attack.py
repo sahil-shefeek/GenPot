@@ -16,7 +16,7 @@ def test_smtp_attack(host: str = "127.0.0.1", port: int = 8025):
 
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(5.0)
+            s.settimeout(180.0)
             s.connect((host, port))
 
             # Read 220 Greeting

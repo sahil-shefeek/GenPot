@@ -30,6 +30,11 @@ def create_http_app(engine: GenPotEngine, rag_system: RAGSystem) -> FastAPI:
         result = rag_system.inspect_query(request.query, request.top_k)
         return result
 
+    @app.get("/api/health")
+    async def health_check():
+        """Fast pre-flight check endpoint that bypasses the LLM."""
+        return JSONResponse(status_code=200, content={"status": "ok"})
+
     @app.api_route(
         "/{full_path:path}",
         methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],

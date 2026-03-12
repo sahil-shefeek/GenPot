@@ -38,6 +38,7 @@ CLI Arguments:
 """
 
 import argparse
+import os
 import random
 import re
 import sys
@@ -57,13 +58,14 @@ from tqdm import tqdm
 
 BASE_URL = "http://localhost:8000"
 REQUEST_TIMEOUT = 30  # seconds per request
-ENCODER_MODEL = "sentence-transformers/multi-qa-MiniLM-L6-cos-v1"
+ENCODER_MODEL = "BAAI/bge-small-en-v1.5"
 
-SPEC_PATH = (
+_DEFAULT_SPEC_PATH = (
     Path(__file__).resolve().parents[2]
     / "data"
     / "api.github.com.2022-11-28.deref.yaml"
 )
+SPEC_PATH = Path(os.getenv("OPENAPI_SPEC_PATH", str(_DEFAULT_SPEC_PATH)))
 
 
 def parse_args() -> argparse.Namespace:
@@ -116,7 +118,7 @@ def preflight_check():
     """Verify the GenPot server is reachable before benchmarking."""
     print(f"[*] Pre-flight: Checking server at {BASE_URL} ...")
     try:
-        requests.get(f"{BASE_URL}/", timeout=REQUEST_TIMEOUT)
+        requests.get(f"{BASE_URL}/api/health", timeout=10)
         print("[*] Pre-flight: Server is reachable. ✅\n")
     except requests.exceptions.ConnectionError:
         print(

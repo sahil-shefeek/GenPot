@@ -23,7 +23,7 @@ import requests
 # =============================================================================
 
 BASE_URL = "http://localhost:8000"
-REQUEST_TIMEOUT = 30  # seconds — generous for LLM generation latency
+REQUEST_TIMEOUT = 120  # seconds — generous for LLM generation latency
 
 # GitHub-style headers for two distinct "attacker" sessions
 HEADERS_A = {
@@ -52,7 +52,7 @@ def preflight_check():
     """
     print(f"[*] Pre-flight: Checking server at {BASE_URL} ...")
     try:
-        requests.get(f"{BASE_URL}/", timeout=REQUEST_TIMEOUT)
+        requests.get(f"{BASE_URL}/api/health", timeout=10)
         print("[*] Pre-flight: Server is reachable. ✅\n")
     except requests.exceptions.ConnectionError:
         print(
