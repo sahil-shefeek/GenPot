@@ -1,0 +1,51 @@
+# data/smtp_rfc5321.yaml
+commands:
+  - command: "HELO"
+    summary: "Initiate SMTP session (older protocol)."
+    description: "The client sends HELO to identify itself. The server responds with 250 OK and its domain name."
+    expected_response: "250 <server_name> Hello <client_ip>"
+
+  - command: "EHLO"
+    summary: "Initiate ESMTP session and identify client."
+    description: "The client sends EHLO to identify itself. The server responds with 250 OK and a list of supported extensions (like SIZE, 8BITMIME, AUTH)."
+    expected_response: "250-<server_name> Hello <client_ip>\n250-SIZE 35882577\n250-8BITMIME\n250-ENHANCEDSTATUSCODES\n250 OK"
+    
+  - command: "MAIL FROM"
+    summary: "Specify the sender's email address."
+    description: "Initiates a mail transaction. Tells the server who the mail is from. Expects a 250 OK response if the sender is accepted."
+    expected_response: "250 2.1.0 Ok"
+
+  - command: "RCPT TO"
+    summary: "Specify the recipient's email address."
+    description: "Identifies a recipient. Can be issued multiple times for multiple recipients. Expects 250 OK if accepted, or 550 if user is unknown or relaying is denied."
+    expected_response: "250 2.1.5 Ok"
+
+  - command: "DATA"
+    summary: "Initiate message content transfer."
+    description: "The client asks to send the message body. The server responds with 354 Start mail input. The client then sends data ending with a single period on a line by itself (<CRLF>.<CRLF>). The server then responds with 250 Message accepted for delivery."
+    expected_response: "354 End data with <CR><LF>.<CR><LF>"
+
+  - command: "QUIT"
+    summary: "Terminate the SMTP session."
+    description: "The client requests to close the connection. The server responds with 221 and closes the TCP connection."
+    expected_response: "221 2.0.0 Bye"
+
+  - command: "RSET"
+    summary: "Reset the current mail transaction."
+    description: "Aborts the current mail transaction (MAIL FROM, RCPT TO, DATA) but keeps the connection open. The server responds with 250 OK."
+    expected_response: "250 2.0.0 Ok"
+
+  - command: "VRFY"
+    summary: "Verify a user exists."
+    description: "Asks the server to confirm if an email address is valid. Often disabled for security (enumeration). Returns 250 if valid, 252 if it cannot be verified but will accept, or 550 if invalid."
+    expected_response: "252 2.1.5 Cannot VRFY user, but will accept message and attempt delivery"
+
+  - command: "EXPN"
+    summary: "Expand a mailing list."
+    description: "Asks the server to expand a mailing list alias. Often disabled for security. Returns 250 with list members or 550 if denied."
+    expected_response: "550 5.7.1 Access denied"
+
+  - command: "NOOP"
+    summary: "No operation."
+    description: "Used to keep the connection alive. The server simply responds with 250 OK."
+    expected_response: "250 2.0.0 Ok"

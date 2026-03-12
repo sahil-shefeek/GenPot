@@ -9,6 +9,8 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 
 
+# In server/rag_system.py
+
 class RAGSystem:
     def __init__(
         self,
@@ -33,60 +35,65 @@ class RAGSystem:
         self.top_k = max(1, top_k)
 
         print(f"[RAG] Loading SentenceTransformer: {model_name}")
-        self.encoder = SentenceTransformer(model_name)
+        self.encoder = SentenceTransformer("BAAI/bge-small-en-v1.5")
 
-        print(f"[RAG] Reading FAISS index from: {self.index_path}")
-        self.index = faiss.read_index(str(self.index_path))
+        # --- Load HTTP Knowledge Base ---
+        print(f"[RAG] Reading HTTP FAISS index from: {kb_dir / 'api_index.faiss'}")
+        self.http_index = faiss.read_index(str(kb_dir / "api_index.faiss"))
+        print(f"[RAG] Loading HTTP index-to-chunk mapping from: {kb_dir / 'index_to_chunk.pkl'}")
+        with open(kb_dir / "index_to_chunk.pkl", "rb") as f:
+            self.http_chunk = pickle.load(f)
+        print(f"[RAG] Loading HTTP metadata from: {kb_dir / 'index_metadata.pkl'}")
+        with open(kb_dir / "index_metadata.pkl", "rb") as f:
+            self.http_meta = pickle.load(f)
 
-        print(f"[RAG] Loading index-to-chunk mapping from: {self.mapping_path}")
-        with open(self.mapping_path, "rb") as f:
-            self.index_to_chunk: dict = pickle.load(f)
-
-        # NEW: Load the metadata mapping
-        print(f"[RAG] Loading metadata from: {self.meta_path}")
-        with open(self.meta_path, "rb") as f:
-            self.index_metadata: dict = pickle.load(f)
+        # --- Load SMTP Knowledge Base ---
+        print(f"[RAG] Reading SMTP FAISS index from: {kb_dir / 'smtp_index.faiss'}")
+        self.smtp_index = faiss.read_index(str(kb_dir / "smtp_index.faiss"))
+        print(f"[RAG] Loading SMTP index-to-chunk mapping from: {kb_dir / 'smtp_index_to_chunk.pkl'}")
+        with open(kb_dir / "smtp_index_to_chunk.pkl", "rb") as f:
+            self.smtp_chunk = pickle.load(f)
+        print(f"[RAG] Loading SMTP metadata from: {kb_dir / 'smtp_index_metadata.pkl'}")
+        with open(kb_dir / "smtp_index_metadata.pkl", "rb") as f:
+            self.smtp_meta = pickle.load(f)
 
         print("[RAG] System ready")
 
-    def get_context(self, query: str, similarity_threshold: float = 0.45) -> str:
-        vec = self.encoder.encode([query], normalize_embeddings=True)
-        if not isinstance(vec, np.ndarray):
-            vec = np.array(vec)
-        vec = vec.astype("float32")
+    def get_context(self, query: str, protocol: str = "http", similarity_threshold: float = 0.45) -> str:
+        vec = self.encoder.encode([query], normalize_embeddings=True).astype("float32")
 
-        distances, indices = self.index.search(vec, self.top_k)
+        # Select the correct protocol index
+        if protocol.lower() == "smtp":
+            index, chunk_map, meta_map = self.smtp_index, self.smtp_chunk, self.smtp_meta
+        else:
+            index, chunk_map, meta_map = self.http_index, self.http_chunk, self.http_meta
 
-        chunks: List[str] = []
-        # Zip distances and indices together so we can check the score
+        distances, indices = index.search(vec, self.top_k)
+        
+        chunks = []
         for dist, idx in zip(distances[0], indices[0]):
             idx = int(idx)
+            if dist >= similarity_threshold and idx in chunk_map:
+                meta = meta_map.get(idx, {})
+                
+                # Format dynamically based on available metadata
+                header = f"--- {'SMTP COMMAND' if protocol == 'smtp' else 'ENDPOINT'} ---"
+                identifier = meta.get("command") or f"{meta.get('method', 'GET')} {meta.get('path', '/')}"
+                
+                formatted_chunk = (
+                    f"{header}\n"
+                    f"Target: {identifier}\n"
+                    f"Similarity Score: {dist:.4f}\n"
+                    f"Details:\n{chunk_map[idx]}"
+                )
+                chunks.append(formatted_chunk)
 
-            # ONLY include the chunk if the cosine similarity is above our threshold
-            if dist >= similarity_threshold:
-                if idx in self.index_to_chunk and idx in self.index_metadata:
-                    chunk_text = self.index_to_chunk[idx]
-                    chunk_meta = self.index_metadata[idx]
-
-                    api_path = chunk_meta.get("path", "Unknown Path")
-                    api_method = chunk_meta.get("method", "Unknown Method")
-
-                    formatted_chunk = (
-                        f"--- ENDPOINT ---\n"
-                        f"Path: {api_path}\n"
-                        f"Method: {api_method}\n"
-                        f"Similarity Score: {dist:.4f}\n"  # Helpful for debugging
-                        f"Details:\n{chunk_text}"
-                    )
-                    chunks.append(formatted_chunk)
-
-        # If no chunks met the threshold, return a specific flag or empty string
         if not chunks:
             return "NO_RELEVANT_CONTEXT_FOUND"
 
         return "\n\n".join(chunks)
 
-    def inspect_query(self, query: str, top_k: int = None) -> dict:
+    def inspect_query(self, query: str, protocol: str = "http", top_k: int = None) -> dict:
         start_time = time.perf_counter()
         k = max(1, top_k) if top_k is not None else self.top_k
 
@@ -95,16 +102,22 @@ class RAGSystem:
             vec = np.array(vec)
         vec = vec.astype("float32")
 
-        distances, indices = self.index.search(vec, k)
+        if protocol.lower() == "smtp":
+            index, chunk_map = self.smtp_index, self.smtp_chunk
+        else:
+            index, chunk_map = self.http_index, self.http_chunk
+
+        distances, indices = index.search(vec, k)
 
         chunks = []
         for idx, dist in zip(indices[0], distances[0]):
-            if 0 <= idx < len(self.index_to_chunk):
+            idx = int(idx)
+            if idx in chunk_map:
                 chunks.append(
                     {
-                        "chunk_index": int(idx),
+                        "chunk_index": idx,
                         "faiss_distance": float(dist),
-                        "text": str(self.index_to_chunk[idx]),
+                        "text": str(chunk_map[idx]),
                     }
                 )
 

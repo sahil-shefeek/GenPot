@@ -47,11 +47,19 @@ class GenPotEngine:
         }
 
         # --- Gather context ---
-        rag_query = f"{request.method} {request.path}"
-        context = self.rag_system.get_context(rag_query)
+        if request.protocol.lower() == "smtp":
+            # Pass the actual command (e.g., "EHLO attacker.com") to FAISS
+            rag_query = request.command or "SMTP" 
+        else:
+            rag_query = f"{request.method} {request.path}"
+
+        # FIX: Pass protocol to RAG
+        context = self.rag_system.get_context(rag_query, protocol=request.protocol)
+        
         state_context = self.state_manager.get_context(
             request.path, request.headers, session_id=request.session_id
         )
+        
 
         # --- Strategy (protocol-aware) ---
         if request.protocol.lower() == "smtp":
