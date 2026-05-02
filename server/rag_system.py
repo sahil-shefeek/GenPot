@@ -44,8 +44,11 @@ class RAGSystem:
 
         # NEW: Load the metadata mapping
         print(f"[RAG] Loading metadata from: {self.meta_path}")
-        with open(self.meta_path, "rb") as f:
-            self.index_metadata: dict = pickle.load(f)
+        try:
+            with open(self.meta_path, "rb") as f:
+                self.index_metadata: dict = pickle.load(f)
+        except FileNotFoundError:
+            self.index_metadata = {}
 
         print("[RAG] System ready")
 
@@ -132,6 +135,7 @@ class RAGSystem:
                             "index": int(idx),
                             "faiss_distance": float(dist),
                             "text": str(self.index_to_chunk[idx]),
+                            "metadata": self.index_metadata.get(int(idx), {}),
                         }
                     )
         else:
@@ -154,6 +158,7 @@ class RAGSystem:
                             "faiss_distance": float(dist),
                             "hybrid_score": float(hybrid_score),
                             "text": text,
+                            "metadata": self.index_metadata.get(int(idx), {}),
                         }
                     )
             scored_chunks.sort(key=lambda x: x["hybrid_score"], reverse=True)
