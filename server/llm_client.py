@@ -12,7 +12,7 @@ load_dotenv()
 
 class LLMProvider(ABC):
     @abstractmethod
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: str, temperature: float = 0.7) -> str:
         """Generates text based on the prompt."""
         pass
 
@@ -76,12 +76,16 @@ class GeminiProvider(LLMProvider):
         except Exception as e:
             raise RuntimeError(f"Failed to initialize Google GenAI client: {e}") from e
 
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: str, temperature: float = 0.7) -> str:
         try:
-            resp = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt,
-            )
+            kwargs = {
+                "model": self.model_name,
+                "contents": prompt,
+            }
+            if temperature != 0.7:
+                kwargs["config"] = {"temperature": temperature}
+                
+            resp = self.client.models.generate_content(**kwargs)
             # Handle potential different response structures if needed,
             # but usually .text access is standard for this SDK.
             text = getattr(resp, "text", None)
@@ -131,7 +135,7 @@ class OllamaProvider(LLMProvider):
         self.client = ollama.Client(host=host)
         self.model_name = model_name
 
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: str, temperature: float = 0.7) -> str:
         try:
             resp = self.client.generate(model=self.model_name, prompt=prompt)
             return resp.get("response", "").strip()
@@ -173,7 +177,7 @@ class OllamaProvider(LLMProvider):
 
 
 def generate_response(
-    prompt: str, provider_type: str = "gemini", model_name: Optional[str] = None
+    prompt: str, provider_type: str = "gemini", model_name: Optional[str] = None, temperature: float = 0.7
 ) -> str:
     """
     Unified entry point for LLM generation.
@@ -188,7 +192,9 @@ def generate_response(
     else:
         raise ValueError(f"Unknown provider type: {provider_type}")
 
-    return provider.generate(prompt)
+    if temperature == 0.7:
+        return provider.generate(prompt)
+    return provider.generate(prompt, temperature=temperature)
 
 
 def list_available_models(provider_type: str = "gemini") -> List[str]:

@@ -83,6 +83,18 @@ Once the ELK stack is running (via either deployment method), you can access the
 
 ---
 
+## 🧪 RAG Playground
+
+GenPot includes an interactive Streamlit playground that allows you to safely test the Retrieval-Augmented Generation (RAG) system, simulate LLM-generated responses, and inspect the retrieved chunks and metrics.
+
+To start the playground, run:
+```bash
+uv run streamlit run rag_playground.py
+```
+This will launch a web interface where you can experiment with retrieval parameters, input specific queries, and visualize the similarity scores between the expected API schema and the AI-generated responses.
+
+---
+
 ## ⚔️ Testing & Attack Simulation
 
 GenPot includes automated attack scripts to verify functionality and simulate adversary behavior. Run these in a separate terminal natively while the honeypot is active.
