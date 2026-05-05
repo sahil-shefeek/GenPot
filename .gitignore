@@ -652,3 +652,6 @@ Temporary Items
 
 # Bruno API client
 bruno/
+
+# Runtime config (auto-generated on first boot)
+config/genpot.yaml
