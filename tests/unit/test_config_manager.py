@@ -96,3 +96,62 @@ def test_load_config_missing_file_creates_template(monkeypatch, tmp_path):
     assert fake_path.exists()
     assert config["core"]["log_level"] == "INFO"
     assert config["llm_defaults"]["thinking"] is False
+
+
+def test_load_config_empty_file_triggers_repair(monkeypatch, tmp_path):
+    """An empty config file should be backed up and regenerated."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    fake_path = config_dir / "genpot.yaml"
+    fake_path.write_text("")  # empty file
+
+    monkeypatch.setattr(config_manager, "CONFIG_DIR", config_dir)
+    monkeypatch.setattr(config_manager, "CONFIG_PATH", fake_path)
+
+    config = config_manager.load_config()
+
+    # Backup should have been created
+    backup = config_dir / "genpot.yaml.bak"
+    assert backup.exists()
+
+    # Fresh template should parse correctly
+    assert config["core"]["log_level"] == "INFO"
+    assert config["llm_defaults"]["provider"] == "gemini"
+
+
+def test_load_config_corrupt_yaml_triggers_repair(monkeypatch, tmp_path):
+    """Corrupt YAML syntax should be backed up and regenerated."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    fake_path = config_dir / "genpot.yaml"
+    fake_path.write_text("{{{not valid yaml:::")
+
+    monkeypatch.setattr(config_manager, "CONFIG_DIR", config_dir)
+    monkeypatch.setattr(config_manager, "CONFIG_PATH", fake_path)
+
+    config = config_manager.load_config()
+
+    backup = config_dir / "genpot.yaml.bak"
+    assert backup.exists()
+    assert "not valid" in backup.read_text()  # original content preserved
+
+    assert config["emulators"]["http"]["enabled"] is True
+
+
+def test_load_config_missing_keys_triggers_repair(monkeypatch, tmp_path):
+    """Valid YAML but missing required top-level keys should trigger repair."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    fake_path = config_dir / "genpot.yaml"
+    fake_path.write_text("some_random_key: true\n")  # valid YAML, wrong structure
+
+    monkeypatch.setattr(config_manager, "CONFIG_DIR", config_dir)
+    monkeypatch.setattr(config_manager, "CONFIG_PATH", fake_path)
+
+    config = config_manager.load_config()
+
+    backup = config_dir / "genpot.yaml.bak"
+    assert backup.exists()
+
+    assert config["core"]["log_level"] == "INFO"
+    assert config["llm_defaults"]["model"] == "gemini-2.5-flash"

@@ -48,22 +48,63 @@ emulators:
     # thinking: true
 """
 
+_REQUIRED_TOP_LEVEL_KEYS = {"core", "llm_defaults", "emulators"}
+
+
+def _write_default_template():
+    """Write the default YAML template to CONFIG_PATH."""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+        f.write(DEFAULT_YAML_TEMPLATE)
+
 
 def _ensure_config_exists():
     """Create the default config file if it does not exist."""
     if not CONFIG_PATH.exists():
-        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            f.write(DEFAULT_YAML_TEMPLATE)
+        _write_default_template()
         print(f"[*] Auto-generated default configuration at {CONFIG_PATH}")
 
 
+def _validate_config(config: Any) -> bool:
+    """Return True if *config* is a dict containing all required top-level keys."""
+    return isinstance(config, dict) and _REQUIRED_TOP_LEVEL_KEYS.issubset(config)
+
+
+def _repair_config():
+    """Back up the broken config file and regenerate the default template."""
+    backup_path = CONFIG_PATH.with_suffix(".yaml.bak")
+    try:
+        CONFIG_PATH.rename(backup_path)
+        print(
+            f"[!] Corrupt configuration backed up to {backup_path}"
+        )
+    except OSError:
+        pass  # If rename fails, overwrite in place
+    _write_default_template()
+    print(f"[*] Regenerated default configuration at {CONFIG_PATH}")
+
+
 def load_config() -> Dict[str, Any]:
-    """Load configuration from the YAML config file, generating it if missing."""
+    """Load configuration from the YAML config file.
+
+    * If the file is missing, a default template is generated.
+    * If the file is empty, corrupt, or structurally invalid, it is backed
+      up to ``genpot.yaml.bak`` and a fresh template is written.
+    """
     _ensure_config_exists()
 
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+    try:
+        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+    except yaml.YAMLError:
+        config = None
+
+    if not _validate_config(config):
+        _repair_config()
+        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+
+    return config
 
 
 def get_emulator_config(protocol: str) -> Dict[str, Any]:
