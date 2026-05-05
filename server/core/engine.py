@@ -67,9 +67,8 @@ class GenPotEngine:
             emulator_cfg = config_manager.get_emulator_config(request.protocol)
             provider = emulator_cfg.get("provider", "gemini")
             model = emulator_cfg.get("model", "gemini-2.5-flash")
-
-            # Optional: Add a "thinking: true/false" key to your genpot.yaml
-            use_thinking = emulator_cfg.get("thinking", True)
+            temperature = float(emulator_cfg.get("temperature", 0.7))
+            use_thinking = bool(emulator_cfg.get("thinking", False))
 
             # --- LLM call ---
             raw_response_text = generate_response(
@@ -77,6 +76,7 @@ class GenPotEngine:
                 system_prompt=system_prompt,
                 provider_type=provider,
                 model_name=model,
+                temperature=temperature,
                 thinking=use_thinking,
             )
             parsed_llm_output = strategy.parse_response(raw_response_text)

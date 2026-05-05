@@ -1,4 +1,3 @@
-import pytest
 from pathlib import Path
 from unittest.mock import mock_open
 from server import config_manager
@@ -10,8 +9,8 @@ core:
 llm_defaults:
   provider: "gemini"
   model: "gemini-2.5-flash"
-  analysis_provider: "gemini"
-  analysis_model: "gemini-2.5-flash"
+  temperature: 0.7
+  thinking: false
 
 emulators:
   http:
@@ -23,6 +22,7 @@ emulators:
     port: 8025
     provider: "ollama"
     model: "phi4-mini"
+    temperature: 0.3
 """
 
 
@@ -43,7 +43,7 @@ def test_load_config_valid(monkeypatch, mocker):
 
 
 def test_get_emulator_config_fallback(monkeypatch, mocker):
-    """HTTP emulator inherits provider and model from llm_defaults."""
+    """HTTP emulator inherits all LLM params from llm_defaults."""
     fake_path = Path("/tmp/fake_genpot.yaml")
     monkeypatch.setattr(config_manager, "CONFIG_PATH", fake_path)
     mocker.patch("builtins.open", mock_open(read_data=VALID_YAML))
@@ -55,10 +55,12 @@ def test_get_emulator_config_fallback(monkeypatch, mocker):
     assert http_config["port"] == 8000
     assert http_config["provider"] == "gemini"
     assert http_config["model"] == "gemini-2.5-flash"
+    assert http_config["temperature"] == 0.7
+    assert http_config["thinking"] is False
 
 
 def test_get_emulator_config_override(monkeypatch, mocker):
-    """SMTP emulator overrides llm_defaults with its own provider/model."""
+    """SMTP emulator overrides llm_defaults with its own values."""
     fake_path = Path("/tmp/fake_genpot.yaml")
     monkeypatch.setattr(config_manager, "CONFIG_PATH", fake_path)
     mocker.patch("builtins.open", mock_open(read_data=VALID_YAML))
@@ -70,13 +72,27 @@ def test_get_emulator_config_override(monkeypatch, mocker):
     assert smtp_config["port"] == 8025
     assert smtp_config["provider"] == "ollama"
     assert smtp_config["model"] == "phi4-mini"
+    # temperature is overridden in the SMTP block
+    assert smtp_config["temperature"] == 0.3
+    # thinking is NOT set in the SMTP block, so it cascades from llm_defaults
+    assert smtp_config["thinking"] is False
 
 
-def test_load_config_missing_file(monkeypatch, mocker):
-    """load_config() raises FileNotFoundError when genpot.yaml is missing."""
-    fake_path = Path("/tmp/nonexistent_genpot.yaml")
+def test_load_config_missing_file_creates_template(monkeypatch, tmp_path):
+    """load_config() should auto-generate the file if it is missing."""
+    config_dir = tmp_path / "config"
+    fake_path = config_dir / "genpot.yaml"
+
+    monkeypatch.setattr(config_manager, "CONFIG_DIR", config_dir)
     monkeypatch.setattr(config_manager, "CONFIG_PATH", fake_path)
-    mocker.patch.object(Path, "exists", return_value=False)
 
-    with pytest.raises(FileNotFoundError, match="Configuration file not found"):
-        config_manager.load_config()
+    # Ensure it doesn't exist yet
+    assert not fake_path.exists()
+
+    # Trigger load, which should invoke generation
+    config = config_manager.load_config()
+
+    # Verify file was written and successfully parsed
+    assert fake_path.exists()
+    assert config["core"]["log_level"] == "INFO"
+    assert config["llm_defaults"]["thinking"] is False
