@@ -62,14 +62,14 @@ class GenPotEngine:
         # Unpack the two prompts
         system_prompt, prompt = strategy.build_prompt(request_data, context, state_context)
 
-        try:
-            # --- LLM config ---
-            emulator_cfg = config_manager.get_emulator_config(request.protocol)
-            provider = emulator_cfg.get("provider", "gemini")
-            model = emulator_cfg.get("model", "gemini-2.5-flash")
-            temperature = float(emulator_cfg.get("temperature", 0.7))
-            use_thinking = bool(emulator_cfg.get("thinking", False))
+        # --- LLM config (outside try to guarantee telemetry on failure) ---
+        emulator_cfg = config_manager.get_emulator_config(request.protocol)
+        provider = emulator_cfg.get("provider", "gemini")
+        model = emulator_cfg.get("model", "gemini-2.5-flash")
+        temperature = float(emulator_cfg.get("temperature", 0.7))
+        use_thinking = bool(emulator_cfg.get("thinking", False))
 
+        try:
             # --- LLM call ---
             raw_response_text = generate_response(
                 prompt=prompt,
@@ -112,6 +112,9 @@ class GenPotEngine:
                     "similarity_score": round(similarity_score, 4),
                     "llm_provider": provider,
                     "llm_model": model,
+                    "llm_temperature": temperature,
+                    "llm_thinking": use_thinking,
+                    "system_prompt": system_prompt,
                     "latency_ms": response_time_ms,
                     "state_actions": side_effects,
                 },
@@ -129,6 +132,11 @@ class GenPotEngine:
                 genpot_metrics={
                     "rag_query": rag_query,
                     "rag_context": context,
+                    "llm_provider": provider,
+                    "llm_model": model,
+                    "llm_temperature": temperature,
+                    "llm_thinking": use_thinking,
+                    "system_prompt": system_prompt,
                     "latency_ms": response_time_ms,
                 },
                 error=str(e),
@@ -151,6 +159,11 @@ class GenPotEngine:
                 genpot_metrics={
                     "rag_query": rag_query,
                     "rag_context": context,
+                    "llm_provider": provider,
+                    "llm_model": model,
+                    "llm_temperature": temperature,
+                    "llm_thinking": use_thinking,
+                    "system_prompt": system_prompt,
                     "latency_ms": response_time_ms,
                 },
                 error=str(e),

@@ -26,6 +26,9 @@ def _make_call(**overrides):
             "similarity_score": 0.85,
             "llm_provider": "gemini",
             "llm_model": "gemini-1.5-flash",
+            "llm_temperature": 0.7,
+            "llm_thinking": False,
+            "system_prompt": "You are an API",
             "latency_ms": 123.4,
             "state_actions": [],
         },
@@ -100,6 +103,9 @@ def test_genpot_custom_namespace():
     assert gp["similarity_score"] == 0.85
     assert gp["llm_provider"] == "gemini"
     assert gp["llm_model"] == "gemini-1.5-flash"
+    assert gp["llm_temperature"] == 0.7
+    assert gp["llm_thinking"] is False
+    assert gp["system_prompt"] == "You are an API"
     assert gp["latency_ms"] == 123.4
     assert gp["state_actions"] == []
 

@@ -106,6 +106,9 @@ def _build_ecs_entry(
         "similarity_score",
         "llm_provider",
         "llm_model",
+        "llm_temperature",
+        "llm_thinking",
+        "system_prompt",
         "latency_ms",
         "state_actions",
     )
