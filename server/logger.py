@@ -34,9 +34,12 @@ def _build_ecs_entry(
             "action": "error" if error else "honeypot_interaction",
             "outcome": "failure" if error else "success",
         },
-        "source": {"ip": source_ip},
         "network": {"protocol": protocol},
     }
+
+    # FIX: Omit the source block entirely if IP is missing or empty
+    if source_ip:
+        entry["source"] = {"ip": source_ip}
 
     if error:
         entry["error"] = {"message": error}
@@ -62,7 +65,11 @@ def _build_ecs_entry(
             if status_code is not None:
                 http_response["status_code"] = status_code
             if response_body is not None:
-                http_response["body"] = {"content": response_body}
+                if isinstance(response_body, (dict, list)):
+                    content_str = json.dumps(response_body)
+                else:
+                    content_str = str(response_body)
+                http_response["body"] = {"content": content_str}
             http_block["response"] = http_response
 
         if http_block:
@@ -74,14 +81,20 @@ def _build_ecs_entry(
 
         headers = request_data.get("headers")
         if headers:
-            entry["http"]["request"]["headers"] = headers
+            # FIX: Safely initialize nested dicts
+            entry.setdefault("http", {}).setdefault("request", {})["headers"] = headers
 
     elif protocol == "smtp":
         smtp_block = {}
-        for key in ("mail_from", "rcpt_to", "data"):
-            value = request_data.get(key)
-            if value is not None:
-                smtp_block[key] = value
+        # FIX 2: Correctly map the engine's keys so SMTP data actually appears
+        command = request_data.get("command")
+        if command:
+            smtp_block["command"] = command
+        
+        body = request_data.get("body")
+        if body:
+            smtp_block["data"] = body
+            
         if smtp_block:
             entry["smtp"] = smtp_block
 
@@ -99,7 +112,19 @@ def _build_ecs_entry(
     for field in genpot_fields:
         value = genpot_metrics.get(field)
         if value is not None:
-            genpot_block[field] = value
+            # FIX: Prevent mapping explosions by stringifying dynamic LLM payloads
+            if field == "state_actions" and isinstance(value, list):
+                sanitized_actions = []
+                for action in value:
+                    safe_action = dict(action)
+                    if "value" in safe_action and isinstance(safe_action["value"], (dict, list)):
+                        safe_action["value"] = json.dumps(safe_action["value"])
+                    else:
+                        safe_action["value"] = str(safe_action.get("value", ""))
+                    sanitized_actions.append(safe_action)
+                genpot_block[field] = sanitized_actions
+            else:
+                genpot_block[field] = value
     if genpot_block:
         entry["genpot"] = genpot_block
 
