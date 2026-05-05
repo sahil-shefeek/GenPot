@@ -104,14 +104,15 @@ if retrieve_btn or generate_btn:
                 }
                 
                 strategy = HttpPromptStrategy()
-                prompt = strategy.build_prompt(request_data, context_text, "")
+                system_prompt, prompt = strategy.build_prompt(request_data, context_text, "")
                 
                 with st.expander("Raw prompt"):
                     st.text(prompt)
                 
                 try:
                     raw_llm_output = generate_response(
-                        prompt, 
+                        prompt,
+                        system_prompt=system_prompt,
                         provider_type=provider, 
                         model_name=model, 
                         temperature=temperature

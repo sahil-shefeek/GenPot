@@ -12,7 +12,7 @@ load_dotenv()
 
 class LLMProvider(ABC):
     @abstractmethod
-    def generate(self, prompt: str, temperature: float = 0.7) -> str:
+    def generate(self, prompt: str, system_prompt: str = None, temperature: float = 0.7, thinking: bool = True) -> str:
         """Generates text based on the prompt."""
         pass
 
@@ -76,16 +76,30 @@ class GeminiProvider(LLMProvider):
         except Exception as e:
             raise RuntimeError(f"Failed to initialize Google GenAI client: {e}") from e
 
-    def generate(self, prompt: str, temperature: float = 0.7) -> str:
+    def generate(self, prompt: str, system_prompt: str = None, temperature: float = 0.7, thinking: bool = True) -> str:
         try:
-            kwargs = {
-                "model": self.model_name,
-                "contents": prompt,
-            }
+            from google.genai import types
+
+            # Build the modern Gemini Config
+            config_args = {}
             if temperature != 0.7:
-                kwargs["config"] = {"temperature": temperature}
-                
-            resp = self.client.models.generate_content(**kwargs)
+                config_args["temperature"] = temperature
+
+            if system_prompt:
+                config_args["system_instruction"] = system_prompt
+
+            if not thinking:
+                # Disables reasoning for Gemini 2.5/3.0 to save latency/tokens
+                config_args["thinking_budget"] = 0
+                config_args["thinking_level"] = "low"
+
+            config = types.GenerateContentConfig(**config_args) if config_args else None
+
+            resp = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=config
+            )
             # Handle potential different response structures if needed,
             # but usually .text access is standard for this SDK.
             text = getattr(resp, "text", None)
@@ -135,9 +149,22 @@ class OllamaProvider(LLMProvider):
         self.client = ollama.Client(host=host)
         self.model_name = model_name
 
-    def generate(self, prompt: str, temperature: float = 0.7) -> str:
+    def generate(self, prompt: str, system_prompt: str = None, temperature: float = 0.7, thinking: bool = True) -> str:
         try:
-            resp = self.client.generate(model=self.model_name, prompt=prompt)
+            kwargs = {
+                "model": self.model_name,
+                "prompt": prompt,
+                "options": {"temperature": temperature}
+            }
+            if system_prompt:
+                kwargs["system"] = system_prompt
+
+            # Explicitly disable the internal <think> trace in Ollama
+            # (requires recent ollama python SDK update)
+            if not thinking:
+                kwargs["think"] = False
+
+            resp = self.client.generate(**kwargs)
             return resp.get("response", "").strip()
         except Exception as e:
             raise RuntimeError(f"Ollama generation failed: {e}") from e
@@ -177,7 +204,8 @@ class OllamaProvider(LLMProvider):
 
 
 def generate_response(
-    prompt: str, provider_type: str = "gemini", model_name: Optional[str] = None, temperature: float = 0.7
+    prompt: str, system_prompt: str = None, provider_type: str = "gemini",
+    model_name: Optional[str] = None, temperature: float = 0.7, thinking: bool = True
 ) -> str:
     """
     Unified entry point for LLM generation.
@@ -192,9 +220,7 @@ def generate_response(
     else:
         raise ValueError(f"Unknown provider type: {provider_type}")
 
-    if temperature == 0.7:
-        return provider.generate(prompt)
-    return provider.generate(prompt, temperature=temperature)
+    return provider.generate(prompt, system_prompt=system_prompt, temperature=temperature, thinking=thinking)
 
 
 def list_available_models(provider_type: str = "gemini") -> List[str]:

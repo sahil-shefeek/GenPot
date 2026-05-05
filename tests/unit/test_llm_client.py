@@ -47,7 +47,7 @@ def test_gemini_successful_generation(monkeypatch, mock_genai):
 
     assert result == "mocked gemini response"
     mock_client_instance.models.generate_content.assert_called_once_with(
-        model=provider.model_name, contents="test"
+        model=provider.model_name, contents="test", config=None
     )
 
 
@@ -108,7 +108,7 @@ def test_ollama_successful_generation(mock_ollama):
 
     assert result == "mocked ollama response"
     mock_client_instance.generate.assert_called_once_with(
-        model="phi4-mini", prompt="test"
+        model="phi4-mini", prompt="test", options={"temperature": 0.7}
     )
 
 
@@ -166,12 +166,16 @@ def test_generate_response_router(
     # Test Gemini
     result_gemini = generate_response("test", provider_type="gemini")
     assert result_gemini == "gemini response"
-    mock_gemini_generate.assert_called_once_with("test")
+    mock_gemini_generate.assert_called_once_with(
+        "test", system_prompt=None, temperature=0.7, thinking=True
+    )
 
     # Test Ollama
     result_ollama = generate_response("test", provider_type="ollama")
     assert result_ollama == "ollama response"
-    mock_ollama_generate.assert_called_once_with("test")
+    mock_ollama_generate.assert_called_once_with(
+        "test", system_prompt=None, temperature=0.7, thinking=True
+    )
 
     # Test Unknown
     with pytest.raises(ValueError):

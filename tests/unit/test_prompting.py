@@ -4,7 +4,12 @@ import json
 
 import pytest
 
-from server.core.prompting import HttpPromptStrategy, SmtpPromptStrategy
+from server.core.prompting import (
+    HttpPromptStrategy,
+    SmtpPromptStrategy,
+    HTTP_SYSTEM_PROMPT,
+    SMTP_SYSTEM_PROMPT,
+)
 
 
 @pytest.fixture
@@ -35,7 +40,10 @@ def test_build_prompt_sandwich_layout(strategy):
     context = "RELEVANT_DOCUMENTATION_BLOCK"
     state = "CURRENT_STATE_BLOCK"
 
-    prompt = strategy.build_prompt(request, context, state)
+    system_prompt, prompt = strategy.build_prompt(request, context, state)
+
+    # System prompt is now returned separately
+    assert "REST API server" in system_prompt
 
     ctx_pos = prompt.index("RELEVANT_DOCUMENTATION_BLOCK")
     state_pos = prompt.index("CURRENT_STATE_BLOCK")
@@ -44,8 +52,6 @@ def test_build_prompt_sandwich_layout(strategy):
     schema_pos = prompt.index("OUTPUT SCHEMA")
     generate_pos = prompt.index("GENERATE YOUR JSON RESPONSE NOW")
 
-    # TOP: System role & rules come before context
-    assert ctx_pos > 0
     # MIDDLE: Context and state come before request details
     assert ctx_pos < method_pos
     assert state_pos < method_pos
@@ -65,7 +71,7 @@ def test_build_prompt_contains_all_fields(strategy):
         "current_time": "2026-01-01T00:00:00+00:00",
     }
 
-    prompt = strategy.build_prompt(request, "API context docs", "{}")
+    system_prompt, prompt = strategy.build_prompt(request, "API context docs", "{}")
 
     assert "Method: GET" in prompt
     assert "Path: /api/v1/resource" in prompt
@@ -90,7 +96,7 @@ def test_build_prompt_header_filtering(strategy):
     }
     request = {"method": "GET", "path": "/", "body": "", "headers": headers}
 
-    prompt = strategy.build_prompt(request, "", "")
+    _system_prompt, prompt = strategy.build_prompt(request, "", "")
 
     assert "Authorization: Bearer token" in prompt
     assert "Accept: application/json" in prompt
@@ -112,13 +118,13 @@ def test_build_prompt_provided_timestamp(strategy):
         "headers": {},
         "current_time": "2026-01-01T00:00:00+00:00",
     }
-    prompt = strategy.build_prompt(request, "", "")
+    _system_prompt, prompt = strategy.build_prompt(request, "", "")
     assert "Current UTC Timestamp: 2026-01-01T00:00:00+00:00" in prompt
 
 
 def test_build_prompt_auto_timestamp(strategy):
     request = {"method": "GET", "path": "/", "body": "", "headers": {}}
-    prompt = strategy.build_prompt(request, "", "")
+    _system_prompt, prompt = strategy.build_prompt(request, "", "")
     assert "Current UTC Timestamp: None" not in prompt
     assert "Current UTC Timestamp:" in prompt
 
@@ -183,7 +189,10 @@ def test_smtp_build_prompt_sandwich_layout(smtp_strategy):
     context = "SMTP_DOCUMENTATION_BLOCK"
     state = "SESSION_STATE_BLOCK"
 
-    prompt = smtp_strategy.build_prompt(request, context, state)
+    system_prompt, prompt = smtp_strategy.build_prompt(request, context, state)
+
+    # System prompt is now returned separately
+    assert "SMTP server" in system_prompt
 
     ctx_pos = prompt.index("SMTP_DOCUMENTATION_BLOCK")
     state_pos = prompt.index("SESSION_STATE_BLOCK")
@@ -191,8 +200,6 @@ def test_smtp_build_prompt_sandwich_layout(smtp_strategy):
     schema_pos = prompt.index("OUTPUT SCHEMA")
     generate_pos = prompt.index("GENERATE YOUR SMTP RESPONSE NOW")
 
-    # TOP: System role & rules come before context
-    assert ctx_pos > 0
     # MIDDLE: Context and state come before the command
     assert ctx_pos < cmd_pos
     assert state_pos < cmd_pos
@@ -212,10 +219,10 @@ def test_smtp_build_prompt_contains_smtp_instructions(smtp_strategy):
     command."""
     request = {"command": "MAIL FROM:<spammer@evil.com>"}
 
-    prompt = smtp_strategy.build_prompt(request, "docs", "state")
+    system_prompt, prompt = smtp_strategy.build_prompt(request, "docs", "state")
 
-    assert "SMTP server" in prompt
-    assert "RFC 5321" in prompt
+    assert "SMTP server" in system_prompt
+    assert "RFC 5321" in system_prompt
     assert "MAIL FROM:<spammer@evil.com>" in prompt
     assert "INCOMING SMTP COMMAND" in prompt
 

@@ -58,19 +58,26 @@ class GenPotEngine:
             strategy = SmtpPromptStrategy()
         else:
             strategy = HttpPromptStrategy()
-        prompt = strategy.build_prompt(request_data, context, state_context)
+
+        # Unpack the two prompts
+        system_prompt, prompt = strategy.build_prompt(request_data, context, state_context)
 
         try:
             # --- LLM config ---
             emulator_cfg = config_manager.get_emulator_config(request.protocol)
             provider = emulator_cfg.get("provider", "gemini")
-            model = emulator_cfg.get("model", "gemini-1.5-flash")
+            model = emulator_cfg.get("model", "gemini-2.5-flash")
+
+            # Optional: Add a "thinking: true/false" key to your genpot.yaml
+            use_thinking = emulator_cfg.get("thinking", True)
 
             # --- LLM call ---
             raw_response_text = generate_response(
-                prompt,
+                prompt=prompt,
+                system_prompt=system_prompt,
                 provider_type=provider,
                 model_name=model,
+                thinking=use_thinking,
             )
             parsed_llm_output = strategy.parse_response(raw_response_text)
 

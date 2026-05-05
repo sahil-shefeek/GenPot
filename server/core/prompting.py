@@ -22,9 +22,12 @@ class PromptStrategy(ABC):
     """Abstract base for protocol-specific prompt strategies."""
 
     @abstractmethod
-    def build_prompt(self, request: dict, context: str, state: str) -> str:
+    def build_prompt(self, request: dict, context: str, state: str) -> tuple[str, str]:
         """Build a complete LLM prompt from request data, RAG context, and
-        world state."""
+        world state.
+
+        Returns a ``(system_prompt, user_prompt)`` tuple so that the
+        system instruction can be passed natively to the LLM provider."""
 
     @abstractmethod
     def parse_response(self, raw_text: str) -> dict:
@@ -40,11 +43,11 @@ class PromptStrategy(ABC):
 # BOTTOM → Exact request + output schema      (Recency Bias)
 # ---------------------------------------------------------------------------
 
-_HTTP_PROMPT_TEMPLATE = """\
-**SYSTEM ROLE:**
+HTTP_SYSTEM_PROMPT = """\
 You are a stateless, professional REST API server. Your only function is to \
-process requests and return raw data. You are not a helpful assistant.
+process requests and return raw data. You are not a helpful assistant."""
 
+_HTTP_PROMPT_TEMPLATE = """\
 **TASK:**
 Your task is to generate a realistic and syntactically correct JSON response \
 that is consistent with the provided API documentation.
@@ -112,8 +115,8 @@ class HttpPromptStrategy(PromptStrategy):
 
     # ----- prompt building --------------------------------------------------
 
-    def build_prompt(self, request: dict, context: str, state: str) -> str:
-        """Return a fully-rendered prompt string.
+    def build_prompt(self, request: dict, context: str, state: str) -> tuple[str, str]:
+        """Return a ``(system_prompt, user_prompt)`` tuple.
 
         ``request`` must contain keys: ``method``, ``path``, ``body``,
         ``headers`` and optionally ``current_time``.
@@ -131,7 +134,7 @@ class HttpPromptStrategy(PromptStrategy):
 
         headers_str = self._format_headers(headers)
 
-        return _HTTP_PROMPT_TEMPLATE.format(
+        user_prompt = _HTTP_PROMPT_TEMPLATE.format(
             current_time=current_time,
             context=context,
             state_context=state,
@@ -140,6 +143,7 @@ class HttpPromptStrategy(PromptStrategy):
             headers=headers_str,
             body=body,
         )
+        return HTTP_SYSTEM_PROMPT, user_prompt
 
     # ----- response parsing -------------------------------------------------
 
@@ -181,12 +185,12 @@ class HttpPromptStrategy(PromptStrategy):
 # BOTTOM → Exact SMTP command + output schema  (Recency Bias)
 # ---------------------------------------------------------------------------
 
-_SMTP_PROMPT_TEMPLATE = """\
-**SYSTEM ROLE:**
+SMTP_SYSTEM_PROMPT = """\
 You are a professional, RFC 5321 compliant SMTP server. Your only function is \
 to process SMTP commands and return valid SMTP response strings. You are not a \
-helpful assistant.
+helpful assistant."""
 
+_SMTP_PROMPT_TEMPLATE = """\
 **TASK:**
 Your task is to generate a realistic, standards-compliant SMTP response to the \
 incoming command. Follow RFC 5321 conventions for reply codes and text.
@@ -232,19 +236,20 @@ class SmtpPromptStrategy(PromptStrategy):
 
     # ----- prompt building --------------------------------------------------
 
-    def build_prompt(self, request: dict, context: str, state: str) -> str:
-        """Return a fully-rendered prompt string.
+    def build_prompt(self, request: dict, context: str, state: str) -> tuple[str, str]:
+        """Return a ``(system_prompt, user_prompt)`` tuple.
 
         ``request`` must contain the key ``command`` with the raw SMTP
         command line (e.g. ``"EHLO attacker.com"``).
         """
         command = request.get("command") or request.get("body") or ""
 
-        return _SMTP_PROMPT_TEMPLATE.format(
+        user_prompt = _SMTP_PROMPT_TEMPLATE.format(
             context=context,
             state_context=state,
             command=command,
         )
+        return SMTP_SYSTEM_PROMPT, user_prompt
 
     # ----- response parsing -------------------------------------------------
 
