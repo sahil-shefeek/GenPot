@@ -655,3 +655,4 @@ bruno/
 
 # Runtime config (auto-generated on first boot)
 config/genpot.yaml
+config/genpot.yaml.bak
